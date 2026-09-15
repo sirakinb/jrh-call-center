@@ -214,7 +214,8 @@ input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 4px r
   letter-spacing: .09em; text-transform: uppercase; color: var(--gold-soft);
 }
 .login-brand p { color: var(--muted); }
-.login-brand { display: block; margin-bottom: 22px; }
+.login-brand { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 26px; }
+.login-brand .brand-logo-lg { height: 48px; }
 
 /* ---------- LIVE-CALL ACTION ROW ---------- */
 .oncall-actions { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
