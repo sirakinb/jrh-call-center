@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=8" />
+<link rel="stylesheet" href="styles.css?v=9" />
 <script src="vendor/twilio.min.js"></script>
 <script>
 if (typeof Twilio === 'undefined') {
@@ -30,12 +30,11 @@ if (typeof Twilio === 'undefined') {
     <h2>Sign in to take calls</h2>
     <p class="login-sub">Welcome back — let's get you on the line.</p>
     <label>Your name
-      <input id="agentName" type="text" list="agentNames" placeholder="e.g. Darryl" autocomplete="off" />
+      <input id="agentName" type="text" placeholder="e.g. Darryl" autocomplete="off" />
     </label>
     <label id="pwLabel">Your password
       <input id="consolePw" type="password" placeholder="Your personal password" autocomplete="current-password" />
     </label>
-    <datalist id="agentNames"></datalist>
     <button id="loginBtn" class="btn btn-primary btn-block">Go online</button>
   </div>
 </div>
@@ -170,6 +169,6 @@ if (typeof Twilio === 'undefined') {
   </div>
 </div>
 
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>
