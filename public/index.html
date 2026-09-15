@@ -6,6 +6,11 @@
 <title>JRH Agent Console</title>
 <link rel="stylesheet" href="styles.css" />
 <script src="vendor/twilio.min.js"></script>
+<script>
+if (typeof Twilio === 'undefined') {
+  document.write('<script src="https://unpkg.com/@twilio/voice-sdk@2/dist/twilio.min.js"><\/script>');
+}
+</script>
 </head>
 <body>
 <div class="app">
