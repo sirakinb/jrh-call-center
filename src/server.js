@@ -277,7 +277,7 @@ app.post('/voice/vi-callback', async (req, res) => {
       if (!zohoId) { console.error('VI callback: no Zoho match for', tSid); return; }
       entry = { zohoId, isVoicemail: false };
     }
-    const labels = entry.isVoicemail ? { 1: 'Caller' } : { 1: 'Agent', 2: 'Caller' };
+    const labels = entry.isVoicemail ? { 1: 'Caller' } : { 1: 'Caller', 2: 'Agent' };
     const text = await vi.getTranscriptText(tSid, labels);
     if (!text) { console.log('VI callback: empty transcript', tSid); return; }
     await updateBridgedCall(entry.zohoId, { Transcript: text.slice(0, 30000) });

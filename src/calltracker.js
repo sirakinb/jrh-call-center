@@ -5,13 +5,17 @@
 // Best-effort correlation:
 //  - /voice/incoming pushes each caller onto a FIFO of waiting callers.
 //  - /voice/agent-connect pops the oldest waiter and binds it to the agent
-//    call's CallSid (the leg that owns the <Dial> + recording).
-//  - /voice/agent-done and /voice/recording-status update/finalize by CallSid.
+//    call's CallSid AND the caller's CallSid (the recording-status webhook
+//    has been observed to carry the CALLER leg's CallSid, so we must be able
+//    to resolve context from either leg).
+//  - /voice/agent-done updates by agent CallSid; recording-status resolves
+//    via either SID.
 // Concurrency note: with multiple simultaneous callers this FIFO can mis-order
 // caller<->agent binding; acceptable for the current 2-3 agent volume.
 
 const waiting = []; // { callSid, from, to, enqueuedAt }
 const byAgentCall = new Map(); // agentCallSid -> context
+const byCallerCall = new Map(); // callerCallSid -> same context object
 const TTL_MS = 2 * 60 * 60 * 1000;
 
 export function callerEnqueued({ callSid, from, to }) {
@@ -24,6 +28,7 @@ export function agentConnected({ agentCallSid, identity }) {
   const caller = waiting.shift() || null;
   const ctx = {
     agentCallSid,
+    callerCallSid: caller?.callSid || null,
     identity: identity || '',
     callerNumber: caller?.from || '',
     bridgeNumber: caller?.to || '',
@@ -34,6 +39,7 @@ export function agentConnected({ agentCallSid, identity }) {
     outcome: null,
   };
   byAgentCall.set(agentCallSid, ctx);
+  if (ctx.callerCallSid) byCallerCall.set(ctx.callerCallSid, ctx);
   return ctx;
 }
 
@@ -48,9 +54,13 @@ export function agentDone({ agentCallSid, dialCallStatus, dialCallDuration }) {
 }
 
 export function takeContextForRecording(callSid) {
-  // Recording-status CallSid equals the agent bridge call for bridged calls.
-  const ctx = byAgentCall.get(callSid);
-  if (ctx) { byAgentCall.delete(callSid); return ctx; }
+  // The recording-status CallSid may be EITHER leg: agent bridge or caller.
+  const ctx = byAgentCall.get(callSid) || byCallerCall.get(callSid);
+  if (ctx) {
+    byAgentCall.delete(ctx.agentCallSid);
+    if (ctx.callerCallSid) byCallerCall.delete(ctx.callerCallSid);
+    return ctx;
+  }
   return null;
 }
 
@@ -66,5 +76,8 @@ function prune() {
   while (waiting.length && waiting[0].enqueuedAt < cutoff) waiting.shift();
   for (const [k, v] of byAgentCall) {
     if ((v.connectedAt || 0) < cutoff) byAgentCall.delete(k);
+  }
+  for (const [k, v] of byCallerCall) {
+    if ((v.connectedAt || 0) < cutoff) byCallerCall.delete(k);
   }
 }
