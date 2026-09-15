@@ -1,0 +1,7 @@
+{
+  "_comment": "On-duty staff and routing. Swap numbers here to change who is on call — no code change. E.164 format. 'enabled' toggles a person without deleting them.",
+  "staff": [
+    { "name": "Test Staff", "number": "+19143166585", "enabled": true },
+    { "name": "Staff Two", "number": "+1XXXXXXXXXX", "enabled": false }
+  ]
+}
