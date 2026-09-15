@@ -63,3 +63,36 @@ export async function writeBridgedCall(fields) {
   }
   return { id: row.details.id };
 }
+
+// Update an existing Bridged_Calls record by id.
+export async function updateBridgedCall(id, fields) {
+  if (!zohoEnabled()) return { skipped: true };
+  const token = await accessToken();
+  const resp = await fetch(`${API_DOMAIN}/crm/v6/${MODULE}/${id}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Zoho-oauthtoken ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ data: [fields], trigger: [] }),
+  });
+  const data = await resp.json();
+  const row = data?.data?.[0];
+  if (row?.status !== 'success') {
+    throw new Error(`Zoho update failed (HTTP ${resp.status}): ${JSON.stringify(data)}`);
+  }
+  return { id: row.details.id };
+}
+
+// Fallback correlation: find a Bridged_Calls record by its Recording SID.
+export async function findByRecordingSid(recordingSid) {
+  if (!zohoEnabled()) return null;
+  const token = await accessToken();
+  const criteria = encodeURIComponent(`(Recording_SID:equals:${recordingSid})`);
+  const resp = await fetch(`${API_DOMAIN}/crm/v6/${MODULE}/search?criteria=${criteria}`, {
+    headers: { Authorization: `Zoho-oauthtoken ${token}` },
+  });
+  if (resp.status === 204) return null;
+  const data = await resp.json().catch(() => null);
+  return data?.data?.[0]?.id || null;
+}

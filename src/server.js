@@ -5,7 +5,8 @@ import twilio from 'twilio';
 import { cfg, url } from './config.js';
 import * as presence from './presence.js';
 import * as tracker from './calltracker.js';
-import { writeBridgedCall, zohoEnabled } from './zoho.js';
+import { writeBridgedCall, updateBridgedCall, findByRecordingSid, zohoEnabled } from './zoho.js';
+import * as vi from './vi.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { VoiceResponse } = twilio.twiml;
@@ -180,7 +181,7 @@ async function ringNextAvailableAgent() {
 }
 
 // ---------------------------------------------------------------------------
-// RECORDING COMPLETION -> Zoho Bridged_Calls write (+ optional webhook)
+// RECORDING COMPLETION -> Zoho Bridged_Calls + Voice Intelligence transcript
 // ---------------------------------------------------------------------------
 app.post('/voice/recording-status', twilioGuard, async (req, res) => {
   const callSid = req.body.CallSid;
@@ -241,12 +242,49 @@ app.post('/voice/recording-status', twilioGuard, async (req, res) => {
     Object.keys(record).forEach((k) => record[k] === undefined && delete record[k]);
     const result = await writeBridgedCall(record);
     console.log('zoho Bridged_Calls write:', JSON.stringify(result));
+    // Submit for transcription; transcript lands in the record via /voice/vi-callback.
+    if (vi.viEnabled() && payload.recordingSid && result.id) {
+      try {
+        const tSid = await vi.submitRecording(payload.recordingSid);
+        viPending.set(tSid, { zohoId: result.id, isVoicemail });
+        console.log('VI transcript submitted:', tSid);
+      } catch (e) { console.error('VI submit failed:', e.message); }
+    }
   } catch (e) {
     console.error('zoho write failed:', e.message);
   }
 
   console.log('recording-status:', JSON.stringify(payload));
   res.sendStatus(204);
+});
+
+// transcriptSid -> { zohoId, isVoicemail } (in-memory; fallback = Zoho search)
+const viPending = new Map();
+
+// Voice Intelligence webhook: transcript ready -> write into the Zoho record.
+app.post('/voice/vi-callback', async (req, res) => {
+  res.sendStatus(200);
+  const tSid = req.body.transcript_sid || req.body.TranscriptSid || req.body.sid;
+  if (!tSid) return;
+  try {
+    let entry = viPending.get(tSid);
+    if (entry) viPending.delete(tSid);
+    if (!entry) {
+      // Restart-safe fallback: correlate through the source recording sid.
+      const meta = await vi.getTranscript(tSid);
+      const recSid = vi.transcriptSourceSid(meta);
+      const zohoId = recSid ? await findByRecordingSid(recSid) : null;
+      if (!zohoId) { console.error('VI callback: no Zoho match for', tSid); return; }
+      entry = { zohoId, isVoicemail: false };
+    }
+    const labels = entry.isVoicemail ? { 1: 'Caller' } : { 1: 'Agent', 2: 'Caller' };
+    const text = await vi.getTranscriptText(tSid, labels);
+    if (!text) { console.log('VI callback: empty transcript', tSid); return; }
+    await updateBridgedCall(entry.zohoId, { Transcript: text.slice(0, 30000) });
+    console.log('VI transcript written to Zoho record', entry.zohoId, `(${text.length} chars)`);
+  } catch (e) {
+    console.error('VI callback failed:', e.message);
+  }
 });
 
 app.listen(cfg.port, '0.0.0.0', () => {
