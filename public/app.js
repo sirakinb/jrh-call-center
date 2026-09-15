@@ -32,9 +32,18 @@ async function loadAuthConfig() {
 }
 loadAuthConfig();
 
+// Remember this browser's display name so it survives reloads and sign-outs.
+function rememberName(n) { try { if (n) localStorage.setItem('jrh_name', n); } catch (e) {} }
+function rememberedName() { try { return localStorage.getItem('jrh_name') || ''; } catch (e) { return ''; } }
+try {
+  const rn = rememberedName();
+  if (rn && $('agentName') && !$('agentName').value) $('agentName').value = rn;
+} catch (e) {}
+
 $('loginBtn').onclick = async () => {
-  agentName = ($('agentName').value || '').trim();
-  if (!agentName) { alert('Enter your name'); return; }
+  // Name is optional: blank keeps the account's default (e.g. "Agent 1").
+  const typedName = ($('agentName').value || '').trim();
+  agentName = typedName;
   try {
     const cfgD = await loadAuthConfig();
     if (cfgD.authRequired) {
@@ -50,7 +59,9 @@ $('loginBtn').onclick = async () => {
       session = ld.session;
       agentName = ld.user.name;      // canonical name from the server
       identity = ld.user.id;         // verified identity
+      if (typedName) rememberName(ld.user.name);
     } else {
+      agentName = agentName || 'Agent';
       identity = slug(agentName);
     }
     const r = await fetch('/api/token', { headers: authHeaders() });
@@ -158,15 +169,38 @@ $('muteBtn').onclick = () => {
 
 /* ============ SETTINGS ============ */
 function openSettings() {
-  $('settingsName').value = `${agentName || ''} (${identity || ''})`;
-  $('settingsName').readOnly = true;
+  $('settingsName').value = agentName || '';
+  $('settingsName').readOnly = false;
   $('settingsOverlay').classList.remove('hidden');
 }
 function closeSettings() { $('settingsOverlay').classList.add('hidden'); }
 $('settingsBtn').onclick = openSettings;
 $('settingsClose').onclick = closeSettings;
 $('settingsOverlay').addEventListener('click', (e) => { if (e.target === $('settingsOverlay')) closeSettings(); });
-$('settingsSave').onclick = () => { closeSettings(); };
+$('settingsSave').onclick = async () => {
+  const n = ($('settingsName').value || '').trim();
+  if (!n) { alert('Enter a display name'); return; }
+  if (n === agentName) { closeSettings(); return; }
+  try {
+    const r = await fetch('/api/rename', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ name: n }),
+    });
+    if (!r.ok) throw new Error('rename failed');
+    const d = await r.json();
+    session = d.session;             // fresh token carrying the new name
+    agentName = d.user.name;
+    $('whoami').textContent = agentName;
+    $('avatar').textContent = agentName.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || 'JR';
+    rememberName(agentName);
+    try {
+      await fetch('/api/presence', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}' });
+    } catch (e) {}
+    log(`display name set to ${agentName}`);
+    closeSettings();
+  } catch (e) { alert('Could not save name: ' + e.message); }
+};
 $('settingsSignout').onclick = async () => {
   try { await setStatus('away'); } catch (e) {}
   try { if (currentCall) currentCall.disconnect(); } catch (e) {}

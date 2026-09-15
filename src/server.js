@@ -47,6 +47,18 @@ app.post('/api/login', (req, res) => {
   res.json({ session: issueToken(user), user });
 });
 
+// Change the display name attached to the signed-in account.
+// Re-issues the session token so the new name is server-bound (presence + records).
+app.post('/api/rename', authGuard, (req, res) => {
+  const name = String((req.body && req.body.name) || '').trim().slice(0, 40);
+  const cur = req.user || {};
+  if (!cur.id) return res.status(401).json({ error: 'auth required' });
+  if (!name) return res.status(400).json({ error: 'name required' });
+  const user = { id: cur.id, name };
+  presence.upsertAgent(user.id, user.name);
+  res.json({ session: issueToken(user), user });
+});
+
 // ---------------------------------------------------------------------------
 // AGENT CONSOLE APIs
 // ---------------------------------------------------------------------------

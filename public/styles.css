@@ -252,3 +252,6 @@ input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 4px r
 .settings-foot-r { display: flex; gap: 10px; }
 .btn-ghost { background: #fff; border: 1px solid var(--line); color: var(--muted); }
 .btn-danger { background: var(--red); color: #fff; border: 1px solid var(--red); }
+
+.settings-note { margin: 8px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.opt { font-weight: 500; color: var(--muted); text-transform: none; letter-spacing: 0; }
