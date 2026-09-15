@@ -20,6 +20,7 @@ export const cfg = {
   holdMusicUrl: process.env.HOLD_MUSIC_URL || 'http://demo.twilio.com/docs/classic.mp3',
   queueName: process.env.QUEUE_NAME || 'jrh-queue',
   maxWaitSeconds: parseInt(process.env.MAX_WAIT_SECONDS || '600', 10),
+  consolePassword: process.env.CONSOLE_PASSWORD || '',
   port: parseInt(process.env.PORT || '3000', 10),
 };
 

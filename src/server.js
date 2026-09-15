@@ -7,6 +7,7 @@ import * as presence from './presence.js';
 import * as tracker from './calltracker.js';
 import { writeBridgedCall, updateBridgedCall, findByRecordingSid, zohoEnabled } from './zoho.js';
 import * as vi from './vi.js';
+import { authGuard, checkPassword, issueToken, authRequired } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { VoiceResponse } = twilio.twiml;
@@ -30,12 +31,21 @@ function twilioGuard(req, res, next) {
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'jrh-callcenter' }));
 
+// Shared-password login: returns a stateless session token used as Bearer on
+// the endpoints that let a browser take live calls.
+app.get('/api/auth-config', (_req, res) => res.json({ authRequired: authRequired() }));
+app.post('/api/login', (req, res) => {
+  const pw = (req.body && req.body.password) || '';
+  if (!checkPassword(pw)) return res.status(401).json({ error: 'wrong password' });
+  res.json({ session: issueToken() });
+});
+
 // ---------------------------------------------------------------------------
 // AGENT CONSOLE APIs
 // ---------------------------------------------------------------------------
 
 // Issue a Voice SDK access token so an agent's browser can send/receive calls.
-app.get('/api/token', (req, res) => {
+app.get('/api/token', authGuard, (req, res) => {
   const identity = (req.query.identity || '').toString().trim();
   const name = (req.query.name || identity).toString().trim();
   if (!identity) return res.status(400).json({ error: 'identity required' });
@@ -52,7 +62,7 @@ app.get('/api/token', (req, res) => {
 });
 
 // Agent sets presence (available/away). Also serves as heartbeat.
-app.post('/api/presence', (req, res) => {
+app.post('/api/presence', authGuard, (req, res) => {
   const { identity, name, status } = req.body;
   if (!identity) return res.status(400).json({ error: 'identity required' });
   presence.upsertAgent(identity, name);
