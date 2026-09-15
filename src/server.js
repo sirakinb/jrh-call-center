@@ -181,7 +181,7 @@ async function ringNextAvailableAgent() {
 }
 
 // ---------------------------------------------------------------------------
-// RECORDING COMPLETION -> Zoho Bridged_Calls + Voice Intelligence transcript
+// RECORDING COMPLETION -> downstream webhook (feeds Zoho reconfig later)
 // ---------------------------------------------------------------------------
 app.post('/voice/recording-status', twilioGuard, async (req, res) => {
   const callSid = req.body.CallSid;
@@ -237,7 +237,7 @@ app.post('/voice/recording-status', twilioGuard, async (req, res) => {
       Recording_URL: payload.recordingUrl || undefined,
       Recording_SID: payload.recordingSid || undefined,
       Twilio_Call_SID: payload.callSid || undefined,
-      Call_Time: nowIso,
+      Call_Time: nowIso.slice(0, 19) + '+00:00',
     };
     Object.keys(record).forEach((k) => record[k] === undefined && delete record[k]);
     const result = await writeBridgedCall(record);
