@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JRH Call Center — System Architecture</title>
+<style>
+  :root{
+    --bg:#0b1020; --bg2:#111a33; --panel:#141d38; --panel2:#1b264a;
+    --ink:#e8edff; --muted:#9fb0d9; --line:#2b3a63;
+    --retell:#8b5cf6; --twilio:#f22f46; --cloud:#f6821f; --vps:#22c55e;
+    --app:#38bdf8; --zoho:#e11d48; --vi:#eab308; --agent:#14b8a6;
+    --caller:#60a5fa;
+    --shadow:0 10px 30px rgba(0,0,0,.45);
+    --radius:18px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #1a2650 0, transparent 60%),
+      radial-gradient(1000px 500px at 100% 0%, #241436 0, transparent 55%),
+      linear-gradient(180deg,#0b1020,#0a0e1c);
+    line-height:1.55;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:32px 22px 80px}
+
+  /* HERO */
+  .hero{
+    position:relative;overflow:hidden;border-radius:26px;padding:46px 40px;
+    background:linear-gradient(120deg,#151f3e,#1c2a55 55%,#2a1a4d);
+    border:1px solid var(--line);box-shadow:var(--shadow);
+  }
+  .hero h1{margin:0;font-size:40px;letter-spacing:.5px}
+  .hero p{margin:10px 0 0;color:var(--muted);font-size:17px;max-width:720px}
+  .hero .pills{margin-top:22px;display:flex;flex-wrap:wrap;gap:10px}
+  .pill{padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05)}
+  .blob{position:absolute;border-radius:50%;filter:blur(8px);opacity:.5}
+  .blob.a{width:180px;height:180px;background:var(--retell);top:-40px;right:60px}
+  .blob.b{width:120px;height:120px;background:var(--twilio);bottom:-30px;right:220px}
+  .blob.c{width:90px;height:90px;background:var(--cloud);top:60px;right:-20px}
+
+  h2.section{font-size:26px;margin:54px 0 6px;display:flex;align-items:center;gap:12px}
+  h2.section .dot{width:14px;height:14px;border-radius:4px;transform:rotate(45deg)}
+  .sub{color:var(--muted);margin:0 0 22px;font-size:15px}
+
+  /* LEGEND */
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 6px}
+  .leg{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);
+    background:var(--panel);border:1px solid var(--line);padding:6px 12px;border-radius:999px}
+  .leg i{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+  /* STACK / LAYERS */
+  .stack{display:flex;flex-direction:column;gap:16px;margin-top:10px}
+  .layer{
+    border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));box-shadow:var(--shadow);
+    position:relative;
+  }
+  .layer .tag{position:absolute;top:-11px;left:18px;font-size:11px;font-weight:700;
+    letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:999px;color:#0b1020}
+  .row{display:flex;flex-wrap:wrap;gap:14px;align-items:stretch}
+  .node{
+    flex:1;min-width:180px;border-radius:14px;padding:14px 16px;border:1px solid var(--line);
+    background:#0e1631;position:relative;overflow:hidden;
+  }
+  .node h4{margin:0 0 4px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .node p{margin:0;font-size:12.5px;color:var(--muted)}
+  .node .ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:14px;flex:0 0 auto}
+  .node .bar{position:absolute;left:0;top:0;bottom:0;width:5px}
+
+  .arrowdown{display:grid;place-items:center;color:var(--muted);font-size:24px;margin:-6px 0}
+
+  /* FLOW STEPS */
+  .flow{position:relative;margin-top:14px}
+  .step{
+    display:grid;grid-template-columns:60px 1fr;gap:18px;align-items:stretch;
+    margin-bottom:14px;
+  }
+  .step .num{
+    width:52px;height:52px;border-radius:16px;display:grid;place-items:center;
+    font-weight:800;font-size:20px;color:#0b1020;box-shadow:var(--shadow);
+    position:relative;z-index:2;
+  }
+  .step .card{
+    border:1px solid var(--line);border-radius:16px;padding:14px 18px;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));box-shadow:var(--shadow);
+  }
+  .step .card h4{margin:0 0 4px;font-size:16px}
+  .step .card p{margin:0;color:var(--muted);font-size:13.5px}
+  .step .card code{background:#0a1330;border:1px solid var(--line);padding:1px 7px;border-radius:6px;font-size:12px;color:#cfe0ff}
+  .flow::before{content:"";position:absolute;left:29px;top:20px;bottom:20px;width:3px;
+    background:linear-gradient(180deg,var(--caller),var(--retell),var(--twilio),var(--cloud),var(--vps),var(--agent),var(--zoho),var(--vi));
+    opacity:.5;border-radius:3px}
+
+  /* GRID CARDS */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px;margin-top:8px}
+  .card2{border:1px solid var(--line);border-radius:16px;padding:18px;background:linear-gradient(180deg,var(--panel),var(--panel2));box-shadow:var(--shadow)}
+  .card2 h4{margin:0 0 8px;font-size:16px;display:flex;align-items:center;gap:10px}
+  .card2 ul{margin:6px 0 0;padding-left:18px;color:var(--muted);font-size:13.5px}
+  .card2 li{margin:4px 0}
+  .badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;color:#0b1020}
+
+  /* ZOHO TABLE */
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13.5px;
+    border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line)}
+  th{background:#0e1631;color:#cfe0ff;font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+  tr:last-child td{border-bottom:none}
+  td code{background:#0a1330;padding:1px 7px;border-radius:6px;font-size:12px;color:#8fe3b0}
+
+  /* SVG diagram */
+  .diagram{border:1px solid var(--line);border-radius:20px;background:
+    radial-gradient(600px 300px at 30% 0,#182348,transparent),linear-gradient(180deg,var(--panel),#0c1density);
+    background-color:var(--panel);padding:10px;box-shadow:var(--shadow);overflow-x:auto}
+
+  .foot{margin-top:60px;color:var(--muted);font-size:13px;text-align:center;border-top:1px solid var(--line);padding-top:22px}
+  .kv{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .kv span{font-size:12px;background:#0a1330;border:1px solid var(--line);padding:4px 10px;border-radius:8px;color:#cfe0ff}
+  a{color:#7cc4ff}
+  .callout{border-left:4px solid var(--vi);background:rgba(234,179,8,.08);padding:12px 16px;border-radius:10px;margin-top:14px;font-size:13.5px;color:#f0e6c0}
+  .toc{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+  .toc a{font-size:13px;text-decoration:none;color:var(--ink);background:var(--panel);border:1px solid var(--line);padding:8px 14px;border-radius:999px}
+  .toc a:hover{border-color:var(--app)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="blob a"></div><div class="blob b"></div><div class="blob c"></div>
+    <h1>🎧 JRH Call Center</h1>
+    <p>A browser-based cloud call center for Jackson Rental Homes — Retell AI answers, callers wait in a real queue with hold music, human agents pick up live in their browser (anywhere in the world), every call is recorded on dual channels, and each bridged call self-writes to Zoho CRM with an auto-generated transcript.</p>
+    <div class="pills">
+      <span class="pill">Retell AI → Twilio → Queue → Browser Agent</span>
+      <span class="pill">Dual-channel recording</span>
+      <span class="pill">Auto Zoho logging</span>
+      <span class="pill">Auto transcription</span>
+      <span class="pill">Password-gated</span>
+      <span class="pill">Runs on your Hostinger VPS</span>
+    </div>
+    <div class="toc">
+      <a href="#bigpicture">① Big Picture</a>
+      <a href="#layers">② System Layers</a>
+      <a href="#flow">③ Call Flow (step by step)</a>
+      <a href="#components">④ Components</a>
+      <a href="#data">⑤ Data & Zoho</a>
+      <a href="#security">⑥ Security</a>
+      <a href="#stack">⑦ Tech Stack</a>
+    </div>
+  </div>
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <div class="leg"><i style="background:var(--caller)"></i>Caller</div>
+    <div class="leg"><i style="background:var(--retell)"></i>Retell AI (Zuri)</div>
+    <div class="leg"><i style="background:var(--twilio)"></i>Twilio</div>
+    <div class="leg"><i style="background:var(--cloud)"></i>Cloudflare Tunnel</div>
+    <div class="leg"><i style="background:var(--vps)"></i>Hostinger VPS</div>
+    <div class="leg"><i style="background:var(--app)"></i>Node App</div>
+    <div class="leg"><i style="background:var(--agent)"></i>Browser Agent</div>
+    <div class="leg"><i style="background:var(--zoho)"></i>Zoho CRM</div>
+    <div class="leg"><i style="background:var(--vi)"></i>Voice Intelligence</div>
+  </div>
+
+  <!-- BIG PICTURE SVG -->
+  <h2 class="section" id="bigpicture"><span class="dot" style="background:var(--app)"></span>① The Big Picture</h2>
+  <p class="sub">One glance at how a phone call becomes a recorded, transcribed, logged conversation with a human.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 1120 560" width="100%" role="img" aria-label="System architecture diagram">
+    <defs>
+      <marker id="arw" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#9fb0d9"/>
+      </marker>
+      <marker id="arwg" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#22c55e"/>
+      </marker>
+      <filter id="ds" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.45"/>
+      </filter>
+      <linearGradient id="gRetell" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
+      <linearGradient id="gTwilio" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff5a6e"/><stop offset="1" stop-color="#d31931"/></linearGradient>
+      <linearGradient id="gCloud" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffa94d"/><stop offset="1" stop-color="#e8760a"/></linearGradient>
+      <linearGradient id="gVps" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#16a34a"/></linearGradient>
+      <linearGradient id="gZoho" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#be123c"/></linearGradient>
+      <linearGradient id="gVi" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset="1" stop-color="#ca8a04"/></linearGradient>
+    </defs>
+
+    <!-- Caller -->
+    <circle cx="70" cy="120" r="42" fill="#1e2a52" stroke="#60a5fa" stroke-width="2" filter="url(#ds)"/>
+    <text x="70" y="118" text-anchor="middle" font-size="26">📞</text>
+    <text x="70" y="185" text-anchor="middle" fill="#e8edff" font-size="14" font-weight="700">Caller</text>
+    <text x="70" y="203" text-anchor="middle" fill="#9fb0d9" font-size="11">tenant / owner</text>
+
+    <!-- Retell -->
+    <rect x="185" y="70" width="150" height="100" rx="18" fill="url(#gRetell)" filter="url(#ds)"/>
+    <text x="260" y="108" text-anchor="middle" font-size="26">🤖</text>
+    <text x="260" y="135" text-anchor="middle" fill="#fff" font-size="14" font-weight="800">Retell AI · Zuri</text>
+    <text x="260" y="153" text-anchor="middle" fill="#efe9ff" font-size="10.5">AI voice agent / intake</text>
+
+    <!-- Twilio number -->
+    <rect x="390" y="70" width="150" height="100" rx="18" fill="url(#gTwilio)" filter="url(#ds)"/>
+    <text x="465" y="106" text-anchor="middle" font-size="24">☎️</text>
+    <text x="465" y="132" text-anchor="middle" fill="#fff" font-size="13" font-weight="800">Twilio Number</text>
+    <text x="465" y="150" text-anchor="middle" fill="#ffe3e6" font-size="10.5">(267) 508-7940</text>
+
+    <!-- Cloudflare tunnel -->
+    <path d="M600 90 h150 a18 18 0 0 1 18 18 v44 a18 18 0 0 1 -18 18 h-150 a18 18 0 0 1 -18 -18 v-44 a18 18 0 0 1 18 -18 z" fill="url(#gCloud)" filter="url(#ds)"/>
+    <text x="675" y="106" text-anchor="middle" font-size="22">🌩️</text>
+    <text x="675" y="132" text-anchor="middle" fill="#3a2200" font-size="12.5" font-weight="800">Cloudflare Tunnel</text>
+    <text x="675" y="150" text-anchor="middle" fill="#4a2d00" font-size="10">jrh-agents.agentworkspace.cloud</text>
+
+    <!-- VPS big box -->
+    <rect x="470" y="250" width="470" height="230" rx="22" fill="#0f1a38" stroke="url(#gVps)" stroke-width="2.5" filter="url(#ds)"/>
+    <text x="490" y="278" fill="#4ade80" font-size="13" font-weight="800">🟢 HOSTINGER VPS · Docker container</text>
+
+    <!-- cloudflared inside -->
+    <rect x="492" y="296" width="150" height="70" rx="14" fill="#12224a" stroke="#f6821f" stroke-width="1.5"/>
+    <text x="567" y="326" text-anchor="middle" fill="#ffd8ad" font-size="12" font-weight="700">cloudflared</text>
+    <text x="567" y="345" text-anchor="middle" fill="#9fb0d9" font-size="10">tunnel connector</text>
+
+    <!-- node app inside -->
+    <rect x="668" y="296" width="250" height="164" rx="14" fill="#0b1a3e" stroke="#38bdf8" stroke-width="1.8"/>
+    <text x="793" y="320" text-anchor="middle" fill="#bfe6ff" font-size="12.5" font-weight="800">Node / Express App :8080</text>
+    <rect x="686" y="332" width="100" height="34" rx="9" fill="#12224a"/><text x="736" y="354" text-anchor="middle" fill="#dbe9ff" font-size="10">Queue + IVR</text>
+    <rect x="798" y="332" width="102" height="34" rx="9" fill="#12224a"/><text x="849" y="354" text-anchor="middle" fill="#dbe9ff" font-size="10">Auth gate 🔒</text>
+    <rect x="686" y="374" width="100" height="34" rx="9" fill="#12224a"/><text x="736" y="396" text-anchor="middle" fill="#dbe9ff" font-size="10">calltracker</text>
+    <rect x="798" y="374" width="102" height="34" rx="9" fill="#12224a"/><text x="849" y="396" text-anchor="middle" fill="#dbe9ff" font-size="10">Zoho writer</text>
+    <rect x="686" y="416" width="212" height="32" rx="9" fill="#12224a"/><text x="792" y="437" text-anchor="middle" fill="#dbe9ff" font-size="10">Twilio Voice SDK token server</text>
+
+    <!-- Browser agents -->
+    <rect x="70" y="300" width="330" height="150" rx="18" fill="#0f2320" stroke="#14b8a6" stroke-width="2" filter="url(#ds)"/>
+    <text x="90" y="326" fill="#5eead4" font-size="13" font-weight="800">💻 Browser Agent Console (WebRTC)</text>
+    <rect x="90" y="340" width="90" height="90" rx="12" fill="#123a35"/><text x="135" y="380" text-anchor="middle" font-size="22">🧑‍💼</text><text x="135" y="410" text-anchor="middle" fill="#c9fff6" font-size="10">Agent 1</text>
+    <rect x="196" y="340" width="90" height="90" rx="12" fill="#123a35"/><text x="241" y="380" text-anchor="middle" font-size="22">🧑‍💼</text><text x="241" y="410" text-anchor="middle" fill="#c9fff6" font-size="10">Agent 2</text>
+    <rect x="302" y="340" width="88" height="90" rx="12" fill="#123a35"/><text x="346" y="378" text-anchor="middle" font-size="22">🌏</text><text x="346" y="408" text-anchor="middle" fill="#c9fff6" font-size="10">PH agent</text>
+
+    <!-- Zoho -->
+    <rect x="985" y="250" width="110" height="96" rx="16" fill="url(#gZoho)" filter="url(#ds)"/>
+    <text x="1040" y="292" text-anchor="middle" font-size="22">🗂️</text>
+    <text x="1040" y="316" text-anchor="middle" fill="#fff" font-size="12" font-weight="800">Zoho CRM</text>
+    <text x="1040" y="333" text-anchor="middle" fill="#ffe0e6" font-size="9.5">Bridged_Calls</text>
+
+    <!-- Voice Intelligence -->
+    <rect x="985" y="372" width="110" height="96" rx="16" fill="url(#gVi)" filter="url(#ds)"/>
+    <text x="1040" y="414" text-anchor="middle" font-size="22">📝</text>
+    <text x="1040" y="438" text-anchor="middle" fill="#3a2d00" font-size="11.5" font-weight="800">Voice Intel</text>
+    <text x="1040" y="454" text-anchor="middle" fill="#4a3b00" font-size="9.5">transcripts</text>
+
+    <!-- ARROWS -->
+    <line x1="114" y1="120" x2="182" y2="120" stroke="#9fb0d9" stroke-width="2.4" marker-end="url(#arw)"/>
+    <line x1="337" y1="120" x2="387" y2="120" stroke="#9fb0d9" stroke-width="2.4" marker-end="url(#arw)"/>
+    <text x="362" y="60" text-anchor="middle" fill="#c9b8ff" font-size="10">cold transfer<tspan x="362" dy="12">SIP INVITE</tspan></text>
+    <line x1="543" y1="120" x2="597" y2="120" stroke="#9fb0d9" stroke-width="2.4" marker-end="url(#arw)"/>
+    <text x="570" y="60" text-anchor="middle" fill="#ffd8ad" font-size="10">webhook</text>
+    <!-- cloudflare down to cloudflared -->
+    <path d="M675 176 V 250 H 567 V 294" fill="none" stroke="#f6821f" stroke-width="2.4" marker-end="url(#arw)"/>
+    <!-- cloudflared to app -->
+    <line x1="644" y1="331" x2="666" y2="331" stroke="#9fb0d9" stroke-width="2.2" marker-end="url(#arw)"/>
+    <!-- app to browser agents (WebRTC media) -->
+    <path d="M668 400 C 520 470, 470 470, 402 400" fill="none" stroke="#14b8a6" stroke-width="2.4" stroke-dasharray="6 5" marker-end="url(#arwg)"/>
+    <text x="520" y="495" text-anchor="middle" fill="#5eead4" font-size="10">WebRTC audio (both directions)</text>
+    <!-- app to zoho -->
+    <path d="M918 330 C 950 320, 960 310, 983 305" fill="none" stroke="#22c55e" stroke-width="2.4" marker-end="url(#arwg)"/>
+    <text x="955" y="285" text-anchor="middle" fill="#86efac" font-size="9.5">write record</text>
+    <!-- app to VI -->
+    <path d="M918 420 C 950 425, 960 425, 983 420" fill="none" stroke="#22c55e" stroke-width="2.4" marker-end="url(#arwg)"/>
+    <!-- VI back to zoho -->
+    <path d="M1040 370 V 350" fill="none" stroke="#eab308" stroke-width="2.4" marker-end="url(#arw)"/>
+    <text x="1075" y="362" text-anchor="middle" fill="#fde047" font-size="9">transcript</text>
+  </svg>
+  </div>
+
+  <!-- LAYERS -->
+  <h2 class="section" id="layers"><span class="dot" style="background:var(--vps)"></span>② The System in Layers</h2>
+  <p class="sub">Same system, stacked top-to-bottom — from the phone network down to where data lands.</p>
+  <div class="stack">
+
+    <div class="layer">
+      <span class="tag" style="background:var(--caller)">Entry</span>
+      <div class="row">
+        <div class="node"><span class="bar" style="background:var(--caller)"></span><h4><span class="ic" style="background:#1e2a52">📞</span>Caller</h4><p>A tenant or owner dials the public JRH line. They never know any of the machinery below exists.</p></div>
+        <div class="node"><span class="bar" style="background:var(--retell)"></span><h4><span class="ic" style="background:#2b1e52">🤖</span>Retell AI — "Zuri"</h4><p>AI voice agent handles intake, answers questions, and — when the caller needs a human — cold-transfers the call.</p></div>
+      </div>
+    </div>
+    <div class="arrowdown">▼</div>
+
+    <div class="layer">
+      <span class="tag" style="background:var(--twilio)">Telephony</span>
+      <div class="row">
+        <div class="node"><span class="bar" style="background:var(--twilio)"></span><h4><span class="ic" style="background:#52161f">☎️</span>Twilio Number</h4><p><b>(267) 508-7940.</b> Receives the transferred call. A <code>SIP INVITE</code> transfer keeps the media path alive so recording continues.</p></div>
+        <div class="node"><span class="bar" style="background:var(--twilio)"></span><h4><span class="ic" style="background:#52161f">🔗</span>Webhooks</h4><p>Twilio calls our app for instructions (TwiML): what to say, where to queue, when to record, and when a call finishes.</p></div>
+      </div>
+    </div>
+    <div class="arrowdown">▼</div>
+
+    <div class="layer">
+      <span class="tag" style="background:var(--cloud)">Ingress</span>
+      <div class="row">
+        <div class="node"><span class="bar" style="background:var(--cloud)"></span><h4><span class="ic" style="background:#4a2d00">🌩️</span>Cloudflare Tunnel</h4><p>A secure outbound tunnel (<code>jrh-agent-console</code>) gives the app a permanent HTTPS address without opening any ports on the VPS.</p></div>
+        <div class="node"><span class="bar" style="background:var(--cloud)"></span><h4><span class="ic" style="background:#4a2d00">🌐</span>Public URL</h4><p><code>jrh-agents.agentworkspace.cloud</code> → routed straight to the container. TLS handled by Cloudflare.</p></div>
+      </div>
+    </div>
+    <div class="arrowdown">▼</div>
+
+    <div class="layer">
+      <span class="tag" style="background:var(--vps)">Compute</span>
+      <div class="row">
+        <div class="node"><span class="bar" style="background:var(--vps)"></span><h4><span class="ic" style="background:#0f3320">🟢</span>Hostinger VPS</h4><p>Your own server. Runs a single Docker container, isolated from the other projects on the box (e.g. manor-prod).</p></div>
+        <div class="node"><span class="bar" style="background:var(--app)"></span><h4><span class="ic" style="background:#0c2a44">⚙️</span>Node / Express App</h4><p>The brain: queue logic, hold music, agent presence, auth, recording control, token server, Zoho writer.</p></div>
+        <div class="node"><span class="bar" style="background:var(--agent)"></span><h4><span class="ic" style="background:#0f2320">💻</span>Browser Console</h4><p>Agents log in with Chrome + a headset. Twilio Voice SDK (WebRTC) — no desk phone, works from anywhere.</p></div>
+      </div>
+    </div>
+    <div class="arrowdown">▼</div>
+
+    <div class="layer">
+      <span class="tag" style="background:var(--zoho)">Data</span>
+      <div class="row">
+        <div class="node"><span class="bar" style="background:var(--zoho)"></span><h4><span class="ic" style="background:#4a1020">🗂️</span>Zoho CRM</h4><p>Each bridged call self-writes a record into the dedicated <code>Bridged_Calls</code> module — outcome, agent, wait time, recording.</p></div>
+        <div class="node"><span class="bar" style="background:var(--vi)"></span><h4><span class="ic" style="background:#4a3b00">📝</span>Voice Intelligence</h4><p>Transcribes the recording a few minutes later and drops labeled text back into the same record.</p></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FLOW -->
+  <h2 class="section" id="flow"><span class="dot" style="background:var(--retell)"></span>③ A Call, Step by Step</h2>
+  <p class="sub">Follow one caller from "hello" to a fully-logged, transcribed record.</p>
+  <div class="flow">
+
+    <div class="step"><div class="num" style="background:var(--caller)">1</div>
+      <div class="card"><h4>📞 Caller dials in & meets Zuri</h4><p>The AI agent (Retell) answers, handles the intake, and when the caller asks for a person — or Zuri can't resolve it — triggers a transfer.</p></div></div>
+
+    <div class="step"><div class="num" style="background:var(--retell)">2</div>
+      <div class="card"><h4>🤖 Cold transfer via SIP INVITE</h4><p>Retell transfers to <code>+1 267-508-7940</code>. Using <b>SIP INVITE</b> (not REFER) keeps the media path alive so <b>recording never drops</b> through the handoff.</p></div></div>
+
+    <div class="step"><div class="num" style="background:var(--twilio)">3</div>
+      <div class="card"><h4>☎️ Twilio asks our app what to do</h4><p>The inbound call hits <code>/voice/incoming</code>. The app returns TwiML: play the <b>consent notice</b> ("this call may be recorded"), then place the caller into the queue.</p></div></div>
+
+    <div class="step"><div class="num" style="background:var(--cloud)">4</div>
+      <div class="card"><h4>🌩️ Through the tunnel to the VPS</h4><p>That webhook travels Cloudflare Tunnel → the container on your Hostinger VPS. Same path for every request, always on the permanent URL.</p></div></div>
+
+    <div class="step"><div class="num" style="background:var(--app)">5</div>
+      <div class="card"><h4>🎶 Queue + hold music + position</h4><p>The caller waits in a real queue: <b>"You're number N in line, about X minutes"</b> with hold music looping. The app tracks queue depth and wait time live.</p></div></div>
+
+    <div class="step"><div class="num" style="background:var(--agent)">6</div>
+      <div class="card"><h4>💻 An agent answers in the browser</h4><p>Online agents see the waiting caller. The call <b>pops in the console</b> (or "Answer next"). Twilio Voice SDK connects the audio over WebRTC — first to answer wins.</p></div></div>
+
+    <div class="step"><div class="num" style="background:var(--twilio)">7</div>
+      <div class="card"><h4>🔴 Bridge + dual-channel recording</h4><p>Caller and agent are bridged. Recording runs <code>record-from-answer-dual</code> — caller on one channel, agent on the other, for clean transcription.</p></div></div>
+
+    <div class="step"><div class="num" style="background:var(--zoho)">8</div>
+      <div class="card"><h4>🗂️ Auto-write to Zoho</h4><p>On <code>/voice/recording-status</code>, the app stitches the call legs together (calltracker) and writes a <b>Bridged_Calls</b> record: caller #, agent, queue wait, talk time, outcome, recording URL.</p></div></div>
+
+    <div class="step"><div class="num" style="background:var(--vi)">9</div>
+      <div class="card"><h4>📝 Transcript fills itself in</h4><p>The recording is submitted to Twilio Voice Intelligence. A few minutes later <code>/voice/vi-callback</code> drops the labeled transcript (<b>Agent:</b> / <b>Caller:</b>) into that same record.</p></div></div>
+
+    <div class="step"><div class="num" style="background:var(--muted)">↺</div>
+      <div class="card"><h4>📮 No agent available? Voicemail.</h4><p>If nobody's online or 25s pass with no pickup, the caller leaves a recorded voicemail — which <b>also</b> writes to Zoho and gets transcribed. Missed callers are never lost.</p></div></div>
+
+  </div>
+
+  <!-- COMPONENTS -->
+  <h2 class="section" id="components"><span class="dot" style="background:var(--agent)"></span>④ The Building Blocks</h2>
+  <p class="sub">Each moving part and what it's responsible for.</p>
+  <div class="grid">
+    <div class="card2"><h4><span class="badge" style="background:var(--retell)">AI</span> Retell — Zuri</h4>
+      <ul><li>Tenant line + owner line</li><li>Intake, Q&A, Section 8 info</li><li>Cold-transfers to a human on request</li></ul></div>
+    <div class="card2"><h4><span class="badge" style="background:var(--twilio)">Telephony</span> Twilio</h4>
+      <ul><li>The phone number & carrier</li><li>Queue, hold music, TwiML</li><li>Dual-channel recording</li><li>Voice SDK for browser audio</li></ul></div>
+    <div class="card2"><h4><span class="badge" style="background:var(--app)">Server</span> Node / Express app</h4>
+      <ul><li><code>/voice/incoming</code> — greet + enqueue</li><li><code>/voice/agent-connect</code> — bridge</li><li><code>/voice/recording-status</code> — log</li><li><code>/voice/vi-callback</code> — transcript</li><li><code>/api/login</code> + token server</li></ul></div>
+    <div class="card2"><h4><span class="badge" style="background:var(--agent)">Frontend</span> Agent console</h4>
+      <ul><li>Login → Go online → Available</li><li>Live queue view</li><li>Answer / decline in browser</li><li>Works anywhere (incl. Philippines)</li></ul></div>
+    <div class="card2"><h4><span class="badge" style="background:var(--cloud)">Ingress</span> Cloudflare Tunnel</h4>
+      <ul><li>Permanent HTTPS hostname</li><li>No open ports on the VPS</li><li>Auto TLS</li></ul></div>
+    <div class="card2"><h4><span class="badge" style="background:var(--vps)">Host</span> Hostinger VPS</h4>
+      <ul><li>Your own always-on server</li><li>Single Docker container</li><li>Isolated from other projects</li><li>Survives restarts</li></ul></div>
+    <div class="card2"><h4><span class="badge" style="background:var(--zoho)">CRM</span> Zoho — Bridged_Calls</h4>
+      <ul><li>Dedicated module for human calls</li><li>Self-writes on every call</li><li>Direct API from the VPS</li></ul></div>
+    <div class="card2"><h4><span class="badge" style="background:var(--vi)">NLP</span> Voice Intelligence</h4>
+      <ul><li>Post-call transcription</li><li>Channel-labeled speakers</li><li>Fills the record automatically</li></ul></div>
+  </div>
+
+  <!-- DATA -->
+  <h2 class="section" id="data"><span class="dot" style="background:var(--zoho)"></span>⑤ What Lands in Zoho</h2>
+  <p class="sub">The <b>Bridged_Calls</b> module — one record per human-handled call, written automatically.</p>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>What it holds</th></tr>
+    <tr><td>Caller Number</td><td>Phone</td><td>The number that came through the bridge</td></tr>
+    <tr><td>Bridge Number</td><td>Phone</td><td>The JRH line, (267) 508-7940</td></tr>
+    <tr><td>Bridge Outcome</td><td>Picklist</td><td><code>Answered</code> · <code>Voicemail</code> · <code>No-answer</code></td></tr>
+    <tr><td>Agent Answered</td><td>Text</td><td>Which agent took the call</td></tr>
+    <tr><td>Queue Wait (sec)</td><td>Number</td><td>How long the caller waited</td></tr>
+    <tr><td>Talk Duration (sec)</td><td>Number</td><td>Length of the live conversation</td></tr>
+    <tr><td>Recording URL</td><td>URL</td><td>Link to the dual-channel recording</td></tr>
+    <tr><td>Recording SID</td><td>Text</td><td>Twilio recording ID</td></tr>
+    <tr><td>Twilio Call SID</td><td>Text</td><td>Correlation key for reconciliation</td></tr>
+    <tr><td>Transcript</td><td>Multi-line</td><td>Auto-filled, labeled Agent / Caller</td></tr>
+    <tr><td>Call Time</td><td>Date/Time</td><td>When the call happened</td></tr>
+  </table>
+  <div class="callout">💡 <b>Why a separate module?</b> A bridged call is its own Twilio leg and can't be reliably matched back to the Retell intake record — so instead of corrupting the existing call logs, every human-handled call gets its own clean, trustworthy record.</div>
+
+  <!-- SECURITY -->
+  <h2 class="section" id="security"><span class="dot" style="background:var(--twilio)"></span>⑥ Security & Consent</h2>
+  <div class="grid">
+    <div class="card2"><h4>🔒 Password gate</h4><ul><li>Shared team password required before going online</li><li>Protects the endpoints that mint call credentials — not just the page</li><li>Stateless signed session token (12h), survives restarts</li><li>Constant-time check; fails safe</li></ul></div>
+    <div class="card2"><h4>🔑 Secrets</h4><ul><li>All credentials live in env vars on the VPS, never in the repo</li><li>Twilio, Zoho, Cloudflare, console password isolated per service</li></ul></div>
+    <div class="card2"><h4>⚖️ Consent</h4><ul><li>PA is all-party consent</li><li>Caller hears a recording notice before bridging</li><li>Staff give standing consent by employment agreement</li></ul></div>
+    <div class="card2"><h4>🛡️ Isolation</h4><ul><li>No inbound ports open on the VPS (tunnel-only)</li><li>Runs isolated from other projects on the box</li></ul></div>
+  </div>
+  <div class="callout" style="border-left-color:var(--agent);background:rgba(20,184,166,.08);color:#c9fff6">🚀 <b>Next up:</b> Option 2 — per-agent logins — would make the "Agent Answered" field a verified identity rather than a typed name. Plus R&B hold music, a multi-agent stress test, and counsel sign-off on consent wording.</div>
+
+  <!-- STACK -->
+  <h2 class="section" id="stack"><span class="dot" style="background:var(--cloud)"></span>⑦ Tech Stack at a Glance</h2>
+  <div class="grid">
+    <div class="card2"><h4>☎️ Telephony</h4><div class="kv"><span>Twilio Voice</span><span>Programmable Queue</span><span>Voice SDK (WebRTC)</span><span>Voice Intelligence</span><span>Retell AI</span></div></div>
+    <div class="card2"><h4>⚙️ App</h4><div class="kv"><span>Node.js</span><span>Express</span><span>ES Modules</span><span>HMAC sessions</span></div></div>
+    <div class="card2"><h4>☁️ Infra</h4><div class="kv"><span>Hostinger VPS</span><span>Docker</span><span>Cloudflare Tunnel</span><span>GitHub deploy</span></div></div>
+    <div class="card2"><h4>🗂️ Data</h4><div class="kv"><span>Zoho CRM v6 API</span><span>Self-client OAuth</span><span>Bridged_Calls module</span></div></div>
+  </div>
+
+  <div class="foot">
+    <div><b>JRH Call Center</b> — architecture reference · built for Jackson Rental Homes</div>
+    <div style="margin-top:6px">Live console: <a href="https://jrh-agents.agentworkspace.cloud">jrh-agents.agentworkspace.cloud</a> · Bridge line: (267) 508-7940</div>
+  </div>
+
+</div>
+</body>
+</html>
