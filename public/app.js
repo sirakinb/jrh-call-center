@@ -122,3 +122,41 @@ function startPolling() {
   };
   tick(); setInterval(tick, 3000);
 }
+
+/* ============ MUTE ============ */
+let isMuted = false;
+$('muteBtn').onclick = () => {
+  if (!currentCall) return;
+  isMuted = !isMuted;
+  currentCall.mute(isMuted);
+  $('muteBtn').textContent = isMuted ? 'Unmute' : 'Mute';
+  $('muteBtn').classList.toggle('on', isMuted);
+  log(isMuted ? 'Microphone muted' : 'Microphone unmuted');
+};
+
+/* ============ SETTINGS ============ */
+function openSettings() {
+  $('settingsName').value = agentName || '';
+  $('settingsOverlay').classList.remove('hidden');
+}
+function closeSettings() { $('settingsOverlay').classList.add('hidden'); }
+$('settingsBtn').onclick = openSettings;
+$('settingsClose').onclick = closeSettings;
+$('settingsOverlay').addEventListener('click', (e) => { if (e.target === $('settingsOverlay')) closeSettings(); });
+$('settingsSave').onclick = () => {
+  const n = ($('settingsName').value || '').trim();
+  if (!n) { alert('Enter a name'); return; }
+  agentName = n;
+  identity = slug(n);
+  $('whoami').textContent = n;
+  $('avatar').textContent = n.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  log('Display name updated to ' + n);
+  closeSettings();
+};
+$('settingsSignout').onclick = async () => {
+  try { await setStatus('away'); } catch (e) {}
+  try { if (currentCall) currentCall.disconnect(); } catch (e) {}
+  try { sessionStorage.clear(); } catch (e) {}
+  location.reload();
+};
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });

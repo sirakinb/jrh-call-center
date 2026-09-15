@@ -21,12 +21,10 @@ if (typeof Twilio === 'undefined') {
 <div id="loginCard" class="login-overlay">
   <div class="login-panel">
     <div class="login-brand">
-      <span class="logo-mark logo-lg" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="30" height="30"><path d="M16 3 L29 14 L25 14 L25 28 L18 28 L18 19 L14 19 L14 28 L7 28 L7 14 L3 14 Z" fill="#ffb200"/><rect x="14.5" y="6" width="3" height="7" rx="1" fill="#004f4f"/></svg>
-      </span>
+      <img class="brand-logo brand-logo-lg" src="jrh-logo-dark.png" alt="Jackson Rental Homes">
       <div>
-        <h1>Jackson Rental Homes</h1>
-        <p>Agent Console</p>
+        
+        <p>Call Agent Console</p>
       </div>
     </div>
     <h2>Sign in to take calls</h2>
@@ -48,12 +46,10 @@ if (typeof Twilio === 'undefined') {
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="side-brand">
-      <span class="logo-mark" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="24" height="24"><path d="M16 3 L29 14 L25 14 L25 28 L18 28 L18 19 L14 19 L14 28 L7 28 L7 14 L3 14 Z" fill="#ffb200"/><rect x="14.5" y="6" width="3" height="7" rx="1" fill="#004f4f"/></svg>
-      </span>
+      <img class="brand-logo" src="jrh-logo.png" alt="Jackson Rental Homes">
       <div>
-        <h1>Jackson Rental Homes</h1>
-        <p>Agent Console</p>
+        
+        <p>Call Agent Console</p>
       </div>
     </div>
 
@@ -80,6 +76,7 @@ if (typeof Twilio === 'undefined') {
 
     <div class="side-foot">
       <div id="deviceState" class="pill pill-off"><span class="pill-dot"></span>Offline</div>
+      <button id="settingsBtn" class="btn btn-soft side-gear">Settings</button>
     </div>
   </aside>
 
@@ -135,6 +132,9 @@ if (typeof Twilio === 'undefined') {
         <span class="oncall-live"><span class="live-dot"></span>Live call</span>
         <span id="callTimer" class="oncall-timer">00:00</span>
         <span class="oncall-sub">Both sides are being recorded</span>
+        <div class="oncall-actions">
+          <button id="muteBtn" class="btn btn-soft">Mute</button>
+        </div>
         <button id="hangupBtn" class="btn btn-hangup">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(135deg)"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
           Hang up
@@ -148,6 +148,26 @@ if (typeof Twilio === 'undefined') {
       <div id="log" class="log"></div>
     </footer>
   </main>
+</div>
+
+
+<!-- SETTINGS -->
+<div id="settingsOverlay" class="settings-overlay hidden">
+  <div class="settings-panel">
+    <h3>Settings</h3>
+    <p class="login-sub">Console preferences for this browser.</p>
+    <div class="settings-row">
+      <label for="settingsName">Display name</label>
+      <input id="settingsName" type="text" autocomplete="off" />
+    </div>
+    <div class="settings-foot">
+      <button id="settingsSignout" class="btn btn-danger">Sign out</button>
+      <div class="settings-foot-r">
+        <button id="settingsClose" class="btn btn-ghost">Close</button>
+        <button id="settingsSave" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="app.js"></script>

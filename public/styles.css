@@ -204,3 +204,50 @@ input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 4px r
   .metrics { width: 100%; }
   .metric { flex: 1; }
 }
+
+/* ---------- BRAND LOGO ---------- */
+.brand-logo { display: block; height: 30px; width: auto; }
+.brand-logo-lg { height: 40px; }
+.side-brand { align-items: flex-start; }
+.side-brand p, .login-brand p {
+  font-size: 11px; font-weight: 700; margin: 7px 0 0;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--gold-soft);
+}
+.login-brand p { color: var(--muted); }
+.login-brand { display: block; margin-bottom: 22px; }
+
+/* ---------- LIVE-CALL ACTION ROW ---------- */
+.oncall-actions { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+.btn-soft {
+  background: rgba(255,255,255,.14); color: #fff;
+  border: 1px solid rgba(255,255,255,.30);
+}
+.btn-soft:hover { background: rgba(255,255,255,.24); }
+.btn-soft.on { background: var(--gold); color: var(--green-900); border-color: var(--gold); }
+.side-gear { align-self: flex-start; }
+
+/* ---------- SETTINGS ---------- */
+.settings-overlay {
+  position: fixed; inset: 0; z-index: 60; padding: 24px;
+  background: rgba(7,37,37,.55); display: grid; place-items: center;
+}
+.settings-panel {
+  width: 100%; max-width: 460px; background: #fff; border-radius: 20px;
+  padding: 28px 28px 24px; box-shadow: var(--shadow-lg);
+}
+.settings-panel h3 { font-family: 'Poppins', sans-serif; font-size: 19px; margin: 0; color: var(--green-800); }
+.settings-panel .login-sub { margin: 6px 0 20px; }
+.settings-row { margin: 0 0 18px; }
+.settings-row label {
+  display: block; font-size: 11px; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 7px;
+}
+.settings-row input[type="text"] {
+  width: 100%; padding: 11px 13px; border: 1px solid var(--line);
+  border-radius: 11px; font: inherit; color: var(--ink); background: #fff;
+}
+.settings-row input[type="text"]:focus { outline: 2px solid var(--green); outline-offset: 1px; }
+.settings-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.settings-foot-r { display: flex; gap: 10px; }
+.btn-ghost { background: #fff; border: 1px solid var(--line); color: var(--muted); }
+.btn-danger { background: var(--red); color: #fff; border: 1px solid var(--red); }
