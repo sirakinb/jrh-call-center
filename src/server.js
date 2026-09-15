@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import twilio from 'twilio';
 import { cfg, url } from './config.js';
 import * as presence from './presence.js';
+import * as tracker from './calltracker.js';
+import { writeBridgedCall, zohoEnabled } from './zoho.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { VoiceResponse } = twilio.twiml;
@@ -26,6 +28,10 @@ function twilioGuard(req, res, next) {
 }
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'jrh-callcenter' }));
+
+// ---------------------------------------------------------------------------
+// AGENT CONSOLE APIs
+// ---------------------------------------------------------------------------
 
 // Issue a Voice SDK access token so an agent's browser can send/receive calls.
 app.get('/api/token', (req, res) => {
@@ -67,9 +73,13 @@ app.get('/api/status', async (_req, res) => {
   });
 });
 
+// ---------------------------------------------------------------------------
 // INBOUND CALL FLOW (Retell cold-transfers caller into the bridge number)
+// ---------------------------------------------------------------------------
+
 app.post('/voice/incoming', twilioGuard, async (req, res) => {
   const twiml = new VoiceResponse();
+  // PA two-party consent notice, then place caller in the queue.
   twiml.say({ voice: 'Polly.Joanna' }, cfg.recordingNotice);
   const enqueue = twiml.enqueue({
     waitUrl: url('/voice/wait'),
@@ -77,6 +87,11 @@ app.post('/voice/incoming', twilioGuard, async (req, res) => {
   }, cfg.queueName);
   void enqueue;
   res.type('text/xml').send(twiml.toString());
+
+  // Track this caller for correlation with the agent leg + recording.
+  try { tracker.callerEnqueued({ callSid: req.body.CallSid, from: req.body.From, to: req.body.To }); } catch (e) { console.error('track enqueue:', e.message); }
+
+  // Fire-and-forget: try to ring an available agent's browser to pick up.
   try { await ringNextAvailableAgent(); } catch (e) { console.error('ring agent:', e.message); }
 });
 
@@ -102,6 +117,7 @@ app.post('/voice/queue-result', twilioGuard, (req, res) => {
   if (result === 'bridged' || result === 'redirected') {
     twiml.hangup();
   } else {
+    // hung-up, error, or system: offer voicemail fallback.
     twiml.say({ voice: 'Polly.Joanna' }, 'We are sorry for the wait. Please leave a message after the tone and our team will call you back.');
     twiml.record({
       action: url('/voice/voicemail-done'),
@@ -121,10 +137,14 @@ app.post('/voice/voicemail-done', twilioGuard, (req, res) => {
   res.type('text/xml').send(twiml.toString());
 });
 
+// ---------------------------------------------------------------------------
 // AGENT CONNECT: both the browser "Answer" and the auto-ring land here.
+// Dequeues the oldest waiting caller and bridges, recording dual-channel.
+// ---------------------------------------------------------------------------
 app.post('/voice/agent-connect', twilioGuard, (req, res) => {
   const identity = (req.body.identity || req.query.identity || '').toString();
   if (identity) presence.setOnCall(identity, true);
+  try { tracker.agentConnected({ agentCallSid: req.body.CallSid, identity }); } catch (e) { console.error('track connect:', e.message); }
   const twiml = new VoiceResponse();
   const dial = twiml.dial({
     record: 'record-from-answer-dual',
@@ -139,11 +159,14 @@ app.post('/voice/agent-connect', twilioGuard, (req, res) => {
 app.post('/voice/agent-done', twilioGuard, (req, res) => {
   const identity = (req.query.identity || '').toString();
   if (identity) presence.setOnCall(identity, false);
+  try { tracker.agentDone({ agentCallSid: req.body.CallSid, dialCallStatus: req.body.DialCallStatus, dialCallDuration: req.body.DialCallDuration }); } catch (e) { console.error('track done:', e.message); }
   const twiml = new VoiceResponse();
   twiml.hangup();
   res.type('text/xml').send(twiml.toString());
 });
 
+// Ring the first available agent's browser client; on answer Twilio requests
+// the TwiML App voice URL (-> /voice/agent-connect) which dequeues the caller.
 async function ringNextAvailableAgent() {
   const agent = presence.firstAvailable();
   if (!agent) return;
@@ -156,19 +179,40 @@ async function ringNextAvailableAgent() {
   });
 }
 
-// RECORDING COMPLETION -> downstream webhook (feeds Zoho reconfig later)
+// ---------------------------------------------------------------------------
+// RECORDING COMPLETION -> Zoho Bridged_Calls write (+ optional webhook)
+// ---------------------------------------------------------------------------
 app.post('/voice/recording-status', twilioGuard, async (req, res) => {
+  const callSid = req.body.CallSid;
+  const recordingUrl = req.body.RecordingUrl ? `${req.body.RecordingUrl}.mp3` : null;
+
+  // Correlate: bridged call (agent leg) vs. voicemail (caller leg).
+  let ctx = tracker.takeContextForRecording(callSid);
+  let isVoicemail = false;
+  if (!ctx) {
+    const vm = tracker.takeWaitingByCallSid(callSid);
+    if (vm) { isVoicemail = true; ctx = { callerNumber: vm.from, bridgeNumber: vm.to }; }
+  }
+
   const payload = {
     event: 'call_recording_completed',
-    callSid: req.body.CallSid,
+    callSid,
     from: req.body.From,
     to: req.body.To,
     recordingSid: req.body.RecordingSid,
-    recordingUrl: req.body.RecordingUrl ? `${req.body.RecordingUrl}.mp3` : null,
+    recordingUrl,
     recordingDuration: req.body.RecordingDuration,
     recordingChannels: req.body.RecordingChannels,
+    callerNumber: ctx?.callerNumber || null,
+    bridgeNumber: ctx?.bridgeNumber || cfg.bridgeNumber || null,
+    agentAnswered: ctx?.identity || null,
+    queueWaitSec: ctx?.queueWaitSec ?? null,
+    talkDurationSec: ctx?.talkDurationSec ?? (req.body.RecordingDuration ? parseInt(req.body.RecordingDuration, 10) : null),
+    outcome: isVoicemail ? 'Voicemail' : (ctx?.outcome || 'Answered'),
     timestamp: new Date().toISOString(),
   };
+
+  // Optional downstream webhook (kept for compatibility).
   if (cfg.completionWebhookUrl) {
     try {
       await fetch(cfg.completionWebhookUrl, {
@@ -176,6 +220,31 @@ app.post('/voice/recording-status', twilioGuard, async (req, res) => {
       });
     } catch (e) { console.error('completion webhook failed:', e.message); }
   }
+
+  // Write a Bridged_Calls record to Zoho CRM.
+  try {
+    const nowIso = new Date().toISOString();
+    const label = `${payload.callerNumber || payload.from || 'Caller'} ${payload.outcome} ${nowIso.slice(0, 16)}Z`;
+    const record = {
+      Name: label.slice(0, 120),
+      Caller_Number: payload.callerNumber || payload.from || undefined,
+      Bridge_Number: payload.bridgeNumber || undefined,
+      Bridge_Outcome: payload.outcome,
+      Agent_Answered: payload.agentAnswered || undefined,
+      Queue_Wait_sec: payload.queueWaitSec ?? undefined,
+      Talk_Duration_sec: payload.talkDurationSec ?? undefined,
+      Recording_URL: payload.recordingUrl || undefined,
+      Recording_SID: payload.recordingSid || undefined,
+      Twilio_Call_SID: payload.callSid || undefined,
+      Call_Time: nowIso,
+    };
+    Object.keys(record).forEach((k) => record[k] === undefined && delete record[k]);
+    const result = await writeBridgedCall(record);
+    console.log('zoho Bridged_Calls write:', JSON.stringify(result));
+  } catch (e) {
+    console.error('zoho write failed:', e.message);
+  }
+
   console.log('recording-status:', JSON.stringify(payload));
   res.sendStatus(204);
 });
