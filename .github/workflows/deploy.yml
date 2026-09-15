@@ -1,0 +1,37 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Hostinger container restart (re-clones repo)
+        run: |
+          code=$(curl -s -o /tmp/resp.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${{ secrets.HOSTINGER_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            "https://developers.hostinger.com/api/vps/v1/virtual-machines/1675098/docker/jrh-call-center/update")
+          echo "Hostinger API responded: $code"
+          cat /tmp/resp.json || true
+          if [ "$code" != "200" ]; then echo "Redeploy trigger failed"; exit 1; fi
+
+      - name: Wait for rebuild
+        run: sleep 100
+
+      - name: Verify production health
+        run: |
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' https://jrh-agents.agentworkspace.cloud/health || true)
+            echo "attempt $i: /health -> $code"
+            if [ "$code" = "200" ]; then echo "Production healthy ✅"; exit 0; fi
+            sleep 20
+          done
+          echo "Health check failed after rebuild ❌"; exit 1
