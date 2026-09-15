@@ -4,6 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>JRH Agent Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="styles.css" />
 <script src="vendor/twilio.min.js"></script>
 <script>
@@ -13,77 +16,140 @@ if (typeof Twilio === 'undefined') {
 </script>
 </head>
 <body>
-<div class="app">
-  <header>
-    <div class="brand">
-      <span class="dot"></span>
+
+<!-- LOGIN OVERLAY -->
+<div id="loginCard" class="login-overlay">
+  <div class="login-panel">
+    <div class="login-brand">
+      <span class="logo-mark logo-lg" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="30" height="30"><path d="M16 3 L29 14 L25 14 L25 28 L18 28 L18 19 L14 19 L14 28 L7 28 L7 14 L3 14 Z" fill="#ffb200"/><rect x="14.5" y="6" width="3" height="7" rx="1" fill="#004f4f"/></svg>
+      </span>
       <div>
         <h1>Jackson Rental Homes</h1>
         <p>Agent Console</p>
       </div>
     </div>
-    <div id="deviceState" class="pill pill-off">Device: offline</div>
-  </header>
-
-  <section id="loginCard" class="card">
-    <h2>Sign in</h2>
+    <h2>Sign in to take calls</h2>
+    <p class="login-sub">Welcome back — let's get you on the line.</p>
     <label>Your name
       <input id="agentName" type="text" placeholder="e.g. Maria" autocomplete="off" />
     </label>
-        <label id="pwLabel">Team password
+    <label id="pwLabel">Team password
       <input id="consolePw" type="password" placeholder="Shared team password" autocomplete="current-password" />
     </label>
-    <button id="loginBtn" class="btn btn-primary">Go online</button>
-    <p class="hint">Use a headset. Chrome will ask for microphone access — click Allow.</p>
-  </section>
+    <button id="loginBtn" class="btn btn-primary btn-block">Go online</button>
+    <p class="hint"><span class="hint-ic">🎧</span> Use a headset. Chrome will ask for microphone access — click <b>Allow</b>.</p>
+  </div>
+</div>
 
-  <section id="consoleCard" class="card hidden">
-    <div class="statusrow">
+<!-- MAIN APP SHELL -->
+<div id="consoleCard" class="shell hidden">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="side-brand">
+      <span class="logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="24" height="24"><path d="M16 3 L29 14 L25 14 L25 28 L18 28 L18 19 L14 19 L14 28 L7 28 L7 14 L3 14 Z" fill="#ffb200"/><rect x="14.5" y="6" width="3" height="7" rx="1" fill="#004f4f"/></svg>
+      </span>
       <div>
-        <span class="label">You</span>
+        <h1>Jackson Rental Homes</h1>
+        <p>Agent Console</p>
+      </div>
+    </div>
+
+    <div class="side-you">
+      <span id="avatar" class="avatar">JR</span>
+      <div class="side-you-info">
+        <span class="label">Signed in as</span>
         <span id="whoami" class="who"></span>
       </div>
-      <div class="toggle">
-        <span class="label">Status</span>
-        <button id="availBtn" class="btn btn-avail">Available</button>
+    </div>
+
+    <div class="side-status">
+      <span class="label">Your status</span>
+      <div class="toggle-btns">
+        <button id="availBtn" class="btn btn-avail on">Available</button>
         <button id="awayBtn" class="btn btn-away">Away</button>
       </div>
     </div>
 
-    <div class="queuebox">
-      <div class="metric">
-        <span id="qSize" class="big">0</span>
-        <span class="cap">waiting in queue</span>
-      </div>
-      <div class="metric">
-        <span id="qWait" class="big">0s</span>
-        <span class="cap">avg wait</span>
-      </div>
-    </div>
-
-    <div id="incoming" class="incoming hidden">
-      <p>📞 Incoming caller</p>
-      <div class="incoming-btns">
-        <button id="answerBtn" class="btn btn-primary">Answer</button>
-        <button id="declineBtn" class="btn btn-away">Decline</button>
-      </div>
-    </div>
-
-    <div id="oncall" class="oncall hidden">
-      <p>🔴 On call — <span id="callTimer">00:00</span></p>
-      <button id="hangupBtn" class="btn btn-away">Hang up</button>
-    </div>
-
-    <button id="answerNextBtn" class="btn btn-outline">Answer next in queue</button>
-
-    <div class="agents">
+    <div class="side-team">
       <span class="label">Team</span>
       <ul id="agentList"></ul>
     </div>
-  </section>
 
-  <div id="log" class="log"></div>
+    <div class="side-foot">
+      <div id="deviceState" class="pill pill-off"><span class="pill-dot"></span>Offline</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <h2 class="topbar-title">Live Queue</h2>
+        <p class="topbar-sub">Incoming tenant &amp; owner calls land here</p>
+      </div>
+      <div class="metrics">
+        <div class="metric metric-queue">
+          <span class="metric-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+          <div><span id="qSize" class="big">0</span><span class="cap">waiting in queue</span></div>
+        </div>
+        <div class="metric">
+          <span class="metric-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+          <div><span id="qWait" class="big">0s</span><span class="cap">avg wait</span></div>
+        </div>
+      </div>
+    </header>
+
+    <section class="stage">
+
+      <!-- IDLE -->
+      <div id="idleState" class="idle">
+        <span class="idle-ic" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#9ec3bd" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        </span>
+        <h3>You're ready for calls</h3>
+        <p>When a caller reaches the front of the queue, they'll ring here. Or pull the next one waiting.</p>
+        <button id="answerNextBtn" class="btn btn-primary">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          Answer next in queue
+        </button>
+      </div>
+
+      <!-- INCOMING -->
+      <div id="incoming" class="incoming hidden">
+        <div class="ring-wrap" aria-hidden="true"><span class="ring"></span><span class="ring2"></span><span class="ring-ic">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#0b2d2d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        </span></div>
+        <h3>Incoming caller</h3>
+        <p class="incoming-sub">Ringing your line…</p>
+        <div class="incoming-btns">
+          <button id="answerBtn" class="btn btn-answer">Answer call</button>
+          <button id="declineBtn" class="btn btn-decline">Decline</button>
+        </div>
+      </div>
+
+      <!-- ON CALL -->
+      <div id="oncall" class="oncall hidden">
+        <span class="oncall-live"><span class="live-dot"></span>Live call</span>
+        <span id="callTimer" class="oncall-timer">00:00</span>
+        <span class="oncall-sub">Both sides are being recorded</span>
+        <button id="hangupBtn" class="btn btn-hangup">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(135deg)"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          Hang up
+        </button>
+      </div>
+
+    </section>
+
+    <footer class="activity">
+      <span class="label">Activity</span>
+      <div id="log" class="log"></div>
+    </footer>
+  </main>
 </div>
+
 <script src="app.js"></script>
 </body>
 </html>

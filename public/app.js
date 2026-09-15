@@ -41,6 +41,7 @@ $('loginBtn').onclick = async () => {
     $('loginCard').classList.add('hidden');
     $('consoleCard').classList.remove('hidden');
     $('whoami').textContent = agentName;
+    $('avatar').textContent = agentName.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase() || 'JR';
     setStatus('available');
     startPolling();
     log(`online as ${identity}`);
@@ -51,12 +52,13 @@ $('loginBtn').onclick = async () => {
 };
 
 function wireDevice() {
-  device.on('registered', () => { $('deviceState').textContent = 'Device: ready'; $('deviceState').className = 'pill pill-on'; });
-  device.on('unregistered', () => { $('deviceState').textContent = 'Device: offline'; $('deviceState').className = 'pill pill-off'; });
+  device.on('registered', () => { $('deviceState').innerHTML = '<span class="pill-dot"></span>Ready'; $('deviceState').className = 'pill pill-on'; });
+  device.on('unregistered', () => { $('deviceState').innerHTML = '<span class="pill-dot"></span>Offline'; $('deviceState').className = 'pill pill-off'; });
   device.on('error', (e) => log('device error: ' + e.message));
   device.on('incoming', (call) => {
     currentCall = call;
     $('incoming').classList.remove('hidden');
+    $('idleState').classList.add('hidden');
     log('incoming call');
     call.on('cancel', () => hideIncoming());
     call.on('disconnect', () => endCall());
@@ -86,17 +88,18 @@ async function setStatus(status) {
   try { await fetch('/api/presence', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ identity, name: agentName, status }) }); } catch {}
 }
 
-function hideIncoming() { $('incoming').classList.add('hidden'); }
+function hideIncoming() { $('incoming').classList.add('hidden'); if ($('oncall').classList.contains('hidden')) $('idleState').classList.remove('hidden'); }
 function onCall() {
   $('oncall').classList.remove('hidden');
-  $('answerNextBtn').classList.add('hidden');
+  $('idleState').classList.add('hidden');
+  $('incoming').classList.add('hidden');
   let s = 0;
   callTimerInt = setInterval(() => { s++; $('callTimer').textContent = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }, 1000);
 }
 function endCall() {
   currentCall = null;
   $('oncall').classList.add('hidden');
-  $('answerNextBtn').classList.remove('hidden');
+  $('idleState').classList.remove('hidden');
   clearInterval(callTimerInt); $('callTimer').textContent = '00:00';
   log('call ended');
 }
@@ -110,7 +113,8 @@ function startPolling() {
       const ul = $('agentList'); ul.innerHTML = '';
       for (const a of d.agents) {
         const li = document.createElement('li');
-        li.innerHTML = `<span>${a.name}</span><span class="s s-${a.status}">${a.status}</span>`;
+        const ini = (a.name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+        li.innerHTML = `<span class="a-left"><span class="a-av">${ini}</span><span>${a.name}</span></span><span class="s s-${a.status}"><span class="s-dot"></span>${a.status}</span>`;
         ul.appendChild(li);
       }
       fetch('/api/presence', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ identity, name: agentName }) });
