@@ -18,23 +18,45 @@ function slug(name) {
   return (name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'agent') + '-' + Math.random().toString(36).slice(2, 5);
 }
 
+// Roster of known agents, used as name suggestions on the login form.
+let roster = [];
+async function loadAuthConfig() {
+  try {
+    const r = await fetch('/api/auth-config');
+    const d = await r.json();
+    roster = d.users || [];
+    const dl = $('agentNames');
+    if (dl) dl.innerHTML = roster.map((u) => `<option value="${u.name}"></option>`).join('');
+    return d;
+  } catch { return { authRequired: false, users: [] }; }
+}
+loadAuthConfig();
+
 $('loginBtn').onclick = async () => {
   agentName = ($('agentName').value || '').trim();
   if (!agentName) { alert('Enter your name'); return; }
-  identity = slug(agentName);
   try {
-    const cfgR = await fetch('/api/auth-config');
-    const cfgD = await cfgR.json().catch(() => ({ authRequired: false }));
+    const cfgD = await loadAuthConfig();
     if (cfgD.authRequired) {
       const pw = ($('consolePw').value || '').trim();
-      if (!pw) { alert('Enter the team password'); return; }
-      const lr = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
-      if (!lr.ok) { alert('Wrong team password'); log('login denied'); return; }
-      session = (await lr.json()).session;
+      if (!pw) { alert('Enter your password'); return; }
+      const lr = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: agentName, password: pw }),
+      });
+      if (!lr.ok) { alert('Wrong name or password'); log('login denied'); return; }
+      const ld = await lr.json();
+      session = ld.session;
+      agentName = ld.user.name;      // canonical name from the server
+      identity = ld.user.id;         // verified identity
+    } else {
+      identity = slug(agentName);
     }
-    const r = await fetch(`/api/token?identity=${encodeURIComponent(identity)}&name=${encodeURIComponent(agentName)}`, { headers: authHeaders() });
+    const r = await fetch('/api/token', { headers: authHeaders() });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'token failed');
+    identity = data.identity;
     device = new Twilio.Device(data.token, { codecPreferences: ['opus', 'pcmu'], logLevel: 'error' });
     wireDevice();
     await device.register();
@@ -44,7 +66,7 @@ $('loginBtn').onclick = async () => {
     $('avatar').textContent = agentName.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase() || 'JR';
     setStatus('available');
     startPolling();
-    log(`online as ${identity}`);
+    log(`online as ${agentName}`);
   } catch (e) {
     alert('Could not go online: ' + e.message);
     log('login error: ' + e.message);
@@ -85,7 +107,7 @@ $('awayBtn').onclick = () => setStatus('away');
 async function setStatus(status) {
   $('availBtn').classList.toggle('on', status === 'available');
   $('awayBtn').classList.toggle('on', status === 'away');
-  try { await fetch('/api/presence', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ identity, name: agentName, status }) }); } catch {}
+  try { await fetch('/api/presence', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ status }) }); } catch {}
 }
 
 function hideIncoming() { $('incoming').classList.add('hidden'); if ($('oncall').classList.contains('hidden')) $('idleState').classList.remove('hidden'); }
@@ -117,7 +139,7 @@ function startPolling() {
         li.innerHTML = `<span class="a-left"><span class="a-av">${ini}</span><span>${a.name}</span></span><span class="s s-${a.status}"><span class="s-dot"></span>${a.status}</span>`;
         ul.appendChild(li);
       }
-      fetch('/api/presence', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ identity, name: agentName }) });
+      fetch('/api/presence', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({}) });
     } catch {}
   };
   tick(); setInterval(tick, 3000);
@@ -136,23 +158,15 @@ $('muteBtn').onclick = () => {
 
 /* ============ SETTINGS ============ */
 function openSettings() {
-  $('settingsName').value = agentName || '';
+  $('settingsName').value = `${agentName || ''} (${identity || ''})`;
+  $('settingsName').readOnly = true;
   $('settingsOverlay').classList.remove('hidden');
 }
 function closeSettings() { $('settingsOverlay').classList.add('hidden'); }
 $('settingsBtn').onclick = openSettings;
 $('settingsClose').onclick = closeSettings;
 $('settingsOverlay').addEventListener('click', (e) => { if (e.target === $('settingsOverlay')) closeSettings(); });
-$('settingsSave').onclick = () => {
-  const n = ($('settingsName').value || '').trim();
-  if (!n) { alert('Enter a name'); return; }
-  agentName = n;
-  identity = slug(n);
-  $('whoami').textContent = n;
-  $('avatar').textContent = n.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-  log('Display name updated to ' + n);
-  closeSettings();
-};
+$('settingsSave').onclick = () => { closeSettings(); };
 $('settingsSignout').onclick = async () => {
   try { await setStatus('away'); } catch (e) {}
   try { if (currentCall) currentCall.disconnect(); } catch (e) {}

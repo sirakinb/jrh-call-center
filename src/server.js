@@ -7,7 +7,7 @@ import * as presence from './presence.js';
 import * as tracker from './calltracker.js';
 import { writeBridgedCall, updateBridgedCall, findByRecordingSid, zohoEnabled } from './zoho.js';
 import * as vi from './vi.js';
-import { authGuard, checkPassword, issueToken, authRequired } from './auth.js';
+import { authGuard, login, issueToken, authRequired, users } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { VoiceResponse } = twilio.twiml;
@@ -36,13 +36,15 @@ function twilioGuard(req, res, next) {
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'jrh-callcenter' }));
 
-// Shared-password login: returns a stateless session token used as Bearer on
-// the endpoints that let a browser take live calls.
-app.get('/api/auth-config', (_req, res) => res.json({ authRequired: authRequired() }));
+// Per-agent login: verifies a name+password pair and returns a stateless
+// session token bound to that agent's identity. The identity (not a
+// client-supplied string) is what gets recorded against calls.
+app.get('/api/auth-config', (_req, res) => res.json({ authRequired: authRequired(), users: users() }));
 app.post('/api/login', (req, res) => {
-  const pw = (req.body && req.body.password) || '';
-  if (!checkPassword(pw)) return res.status(401).json({ error: 'wrong password' });
-  res.json({ session: issueToken() });
+  const { name, password } = req.body || {};
+  const user = login(name, password);
+  if (!user) return res.status(401).json({ error: 'wrong name or password' });
+  res.json({ session: issueToken(user), user });
 });
 
 // ---------------------------------------------------------------------------
@@ -51,8 +53,9 @@ app.post('/api/login', (req, res) => {
 
 // Issue a Voice SDK access token so an agent's browser can send/receive calls.
 app.get('/api/token', authGuard, (req, res) => {
-  const identity = (req.query.identity || '').toString().trim();
-  const name = (req.query.name || identity).toString().trim();
+  // Identity comes from the authenticated session, never from the client.
+  const identity = (req.user && req.user.id) || (req.query.identity || '').toString().trim();
+  const name = ((req.user && req.user.name) || (req.query.name || identity)).toString().trim();
   if (!identity) return res.status(400).json({ error: 'identity required' });
   if (!cfg.apiKeySid || !cfg.apiKeySecret || !cfg.twimlAppSid) {
     return res.status(500).json({ error: 'Voice SDK not provisioned (missing API key / TwiML app)' });
@@ -68,7 +71,9 @@ app.get('/api/token', authGuard, (req, res) => {
 
 // Agent sets presence (available/away). Also serves as heartbeat.
 app.post('/api/presence', authGuard, (req, res) => {
-  const { identity, name, status } = req.body;
+  const identity = (req.user && req.user.id) || (req.body && req.body.identity) || '';
+  const name = ((req.user && req.user.name) || (req.body && req.body.name) || identity).toString();
+  const { status } = req.body || {};
   if (!identity) return res.status(400).json({ error: 'identity required' });
   presence.upsertAgent(identity, name);
   if (status) presence.setStatus(identity, status);

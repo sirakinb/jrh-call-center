@@ -21,6 +21,8 @@ export const cfg = {
   queueName: process.env.QUEUE_NAME || 'jrh-queue',
   maxWaitSeconds: parseInt(process.env.MAX_WAIT_SECONDS || '600', 10),
   consolePassword: process.env.CONSOLE_PASSWORD || '',
+  consoleUsers: process.env.CONSOLE_USERS || '',
+  consoleSecret: process.env.CONSOLE_SECRET || '',
   port: parseInt(process.env.PORT || '3000', 10),
 };
 
