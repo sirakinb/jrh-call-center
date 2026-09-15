@@ -1,0 +1,31 @@
+services:
+  app:
+    image: node:20-slim
+    working_dir: /app
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    command: ["sh","-c","set -e; apt-get update -qq && apt-get install -y -qq git ca-certificates && rm -rf /tmp/repo && git clone --depth 1 https://github.com/sirakinb/jrh-call-center.git /tmp/repo && cp -a /tmp/repo/. /app/ && cd /app && npm install --omit=dev && mkdir -p public/vendor && cp node_modules/@twilio/voice-sdk/dist/twilio.min.js public/vendor/twilio.min.js && node src/server.js"]
+    environment:
+      - TWILIO_ACCOUNT_SID
+      - TWILIO_AUTH_TOKEN
+      - TWILIO_API_KEY_SID
+      - TWILIO_API_KEY_SECRET
+      - TWILIO_TWIML_APP_SID
+      - TWILIO_BRIDGE_NUMBER
+      - PUBLIC_BASE_URL
+      - STAFF_CALLER_ID
+      - RING_STRATEGY
+      - RING_TIMEOUT
+      - COMPLETION_WEBHOOK_URL
+      - RECORDING_NOTICE
+      - HOLD_MUSIC_URL
+      - QUEUE_NAME
+      - PORT
+    restart: unless-stopped
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN
+    restart: unless-stopped
