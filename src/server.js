@@ -17,7 +17,12 @@ const VoiceGrant = AccessToken.VoiceGrant;
 const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  setHeaders: (res, filePath) => {
+    if (/\.html?$/.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
+    else res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+  }
+}));
 
 const rest = twilio(cfg.accountSid, cfg.authToken);
 
