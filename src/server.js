@@ -249,6 +249,7 @@ async function logCallbackRequest(req, ten) {
   const record = {
     Name: `CALLBACK ${pretty} ${nowIso.slice(0, 16)}Z`.slice(0, 120),
     Caller_Number: `+1${ten}`,
+    Callback_Requested: true,
     Bridge_Number: cfg.bridgeNumber || undefined,
     Bridge_Outcome: 'No-answer',
     Queue_Wait_sec: MAX_QUEUE_WAIT_SEC,
