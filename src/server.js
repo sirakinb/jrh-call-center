@@ -129,10 +129,23 @@ app.post('/voice/incoming', twilioGuard, async (req, res) => {
 });
 
 // Hold experience: position + estimated wait + music, looped by Twilio.
+// Hard cap on how long a caller may sit in the queue. Twilio bills every minute,
+// so an unattended caller (no agent available) must never be left on hold for
+// hours. On timeout we return <Leave/>, which is supported inside the waitUrl and
+// takes the caller out of the queue WITHOUT hanging up. Twilio then requests our
+// <Enqueue> action URL (/voice/queue-result) right away with QueueResult=leave,
+// which plays the voicemail fallback. Override with MAX_QUEUE_WAIT_SEC.
+const MAX_QUEUE_WAIT_SEC = parseInt(process.env.MAX_QUEUE_WAIT_SEC || '120', 10);
+
 app.post('/voice/wait', twilioGuard, (req, res) => {
+  const queueTime = parseInt(req.body.QueueTime || '0', 10);
+  if (queueTime >= MAX_QUEUE_WAIT_SEC) {
+    res.type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response><Leave/></Response>');
+    return;
+  }
   const twiml = new VoiceResponse();
   const pos = parseInt(req.body.QueuePosition || '0', 10);
-  const avg = parseInt(req.body.AverageQueueTime || req.body.CurrentQueueSize || '0', 10);
+  const avg = parseInt(req.body.AvgQueueTime || req.body.CurrentQueueSize || '0', 10);
   if (pos > 0) {
     const mins = Math.max(1, Math.round((pos * Math.max(avg, 60)) / 60));
     const ordinal = pos === 1 ? 'first' : `number ${pos}`;
@@ -181,6 +194,10 @@ app.post('/voice/agent-connect', twilioGuard, (req, res) => {
   const twiml = new VoiceResponse();
   const dial = twiml.dial({
     record: 'record-from-answer-dual',
+    // Cap the bridged call (and therefore its recording) at 1 hour — a plain
+    // <Dial> defaults to 4h, so a stuck/forgotten bridge could otherwise run up
+    // hours of call minutes plus recording and transcription cost.
+    timeLimit: 3600,
     recordingStatusCallback: url('/voice/recording-status'),
     recordingStatusCallbackEvent: 'completed',
     action: url('/voice/agent-done') + (identity ? `?identity=${encodeURIComponent(identity)}` : ''),
