@@ -134,8 +134,9 @@ app.post('/voice/incoming', twilioGuard, async (req, res) => {
 // hours. On timeout we return <Leave/>, which is supported inside the waitUrl and
 // takes the caller out of the queue WITHOUT hanging up. Twilio then requests our
 // <Enqueue> action URL (/voice/queue-result) right away with QueueResult=leave,
-// which plays the voicemail fallback. Override with MAX_QUEUE_WAIT_SEC.
-const MAX_QUEUE_WAIT_SEC = parseInt(process.env.MAX_QUEUE_WAIT_SEC || '120', 10);
+// which offers a callback (we must ask for the number: the caller ID on a Retell
+// transfer leg is Retell's number, not the caller's) with voicemail as fallback.
+const MAX_QUEUE_WAIT_SEC = parseInt(process.env.MAX_QUEUE_WAIT_SEC || '300', 10);
 
 app.post('/voice/wait', twilioGuard, (req, res) => {
   const queueTime = parseInt(req.body.QueueTime || '0', 10);
@@ -156,25 +157,103 @@ app.post('/voice/wait', twilioGuard, (req, res) => {
   res.type('text/xml').send(twiml.toString());
 });
 
-// After the caller leaves the queue (bridged, or gave up / timed out).
+// After the caller leaves the queue: bridged to an agent, or timed out / gave up.
 app.post('/voice/queue-result', twilioGuard, (req, res) => {
   const twiml = new VoiceResponse();
   const result = req.body.QueueResult;
-  if (result === 'bridged' || result === 'redirected') {
+  if (result === 'bridged' || result === 'redirected' || result === 'hangup') {
+    // Bridged to an agent, or the caller is already gone — nothing to play.
     twiml.hangup();
   } else {
-    // hung-up, error, or system: offer voicemail fallback.
-    twiml.say({ voice: 'Polly.Joanna' }, 'We are sorry for the wait. Please leave a message after the tone and our team will call you back.');
-    twiml.record({
-      action: url('/voice/voicemail-done'),
-      recordingStatusCallback: url('/voice/recording-status'),
-      recordingStatusCallbackEvent: 'completed',
-      maxLength: 180,
-      playBeep: true,
+    // Timed out (or errored): offer a callback, voicemail as the fallback.
+    const g = twiml.gather({
+      numDigits: 1,
+      timeout: 6,
+      action: url('/voice/callback-menu'),
+      method: 'POST',
     });
+    g.say({ voice: 'Polly.Joanna' },
+      'We are sorry for the wait. All of our leasing agents are on other calls right now. '
+      + 'If you would like us to call you back, press 1 now. '
+      + 'Otherwise, stay on the line and leave a message after the tone.');
   }
   res.type('text/xml').send(twiml.toString());
 });
+
+// Caller pressed 1 -> collect their callback number. Any other choice -> voicemail.
+app.post('/voice/callback-menu', twilioGuard, (req, res) => {
+  const twiml = new VoiceResponse();
+  const digits = (req.body.Digits || '').trim();
+  if (digits === '1') {
+    const g = twiml.gather({
+      numDigits: 11,
+      finishOnKey: '#',
+      timeout: 12,
+      action: url('/voice/callback-number'),
+      method: 'POST',
+    });
+    g.say({ voice: 'Polly.Joanna' },
+      'Please enter the ten digit phone number you would like us to call, then press pound.');
+  } else {
+    voicemailTwiml(twiml);
+  }
+  res.type('text/xml').send(twiml.toString());
+});
+
+// Callback number captured -> confirm it, log a Callback record in Zoho, hang up.
+app.post('/voice/callback-number', twilioGuard, async (req, res) => {
+  const raw = (req.body.Digits || '').replace(/\D/g, '');
+  const ten = raw.length === 11 && raw.startsWith('1') ? raw.slice(1) : raw;
+  const twiml = new VoiceResponse();
+  if (ten.length !== 10) {
+    twiml.say({ voice: 'Polly.Joanna' }, 'Sorry, we did not get a complete number.');
+    voicemailTwiml(twiml);
+  } else {
+    twiml.say({ voice: 'Polly.Joanna' },
+      `Got it. We will call you back at ${ten.split('').join(' ')}. `
+      + 'Thank you for calling Jackson Rental Homes. Goodbye.');
+    twiml.hangup();
+    logCallbackRequest(req, ten).catch((e) => console.error('callback log failed:', e.message));
+  }
+  res.type('text/xml').send(twiml.toString());
+});
+
+// Voicemail fallback. We ask for the number too — caller ID on a Retell transfer
+// leg is Retell's number, so the number has to come from the caller.
+function voicemailTwiml(twiml) {
+  twiml.say({ voice: 'Polly.Joanna' },
+    'Please leave your name, the property you are calling about, and the best number to reach you. '
+    + 'Press pound when you are finished.');
+  twiml.record({
+    action: url('/voice/voicemail-done'),
+    recordingStatusCallback: url('/voice/recording-status'),
+    recordingStatusCallbackEvent: 'completed',
+    maxLength: 180,
+    finishOnKey: '#',
+    playBeep: true,
+  });
+  twiml.say('We did not receive a message. Goodbye.');
+  twiml.hangup();
+}
+
+// Write the callback request to Zoho so the team can dial it back.
+async function logCallbackRequest(req, ten) {
+  if (!zohoEnabled()) return;
+  const nowIso = new Date().toISOString();
+  const pretty = `${ten.slice(0, 3)}-${ten.slice(3, 6)}-${ten.slice(6)}`;
+  const record = {
+    Name: `${pretty} Callback ${nowIso.slice(0, 16)}Z`.slice(0, 120),
+    Caller_Number: `+1${ten}`,
+    Bridge_Number: cfg.bridgeNumber || undefined,
+    Bridge_Outcome: 'Callback',
+    Queue_Wait_sec: MAX_QUEUE_WAIT_SEC,
+    Twilio_Call_SID: req.body.CallSid || undefined,
+    Call_Time: nowIso.slice(0, 19) + '+00:00',
+  };
+  Object.keys(record).forEach((k) => record[k] === undefined && delete record[k]);
+  const result = await writeBridgedCall(record);
+  console.log('zoho callback write:', JSON.stringify(result));
+}
 
 app.post('/voice/voicemail-done', twilioGuard, (req, res) => {
   const twiml = new VoiceResponse();
