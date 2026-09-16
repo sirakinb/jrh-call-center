@@ -188,6 +188,27 @@ function clearQueueTimer(callSid) {
   if (t) { clearTimeout(t); queueTimers.delete(callSid); }
 }
 
+// Is this caller still sitting in the queue? Used to make sure the cap timer
+// never interrupts a call an agent has already answered.
+let queueSidCache = null;
+async function queueSid(client) {
+  if (queueSidCache) return queueSidCache;
+  const qs = await client.queues.list({ limit: 50 });
+  const q = qs.find((x) => x.friendlyName === 'jrh-queue') || qs[0];
+  queueSidCache = q ? q.sid : null;
+  return queueSidCache;
+}
+async function stillQueued(client, callSid) {
+  try {
+    const qsid = await queueSid(client);
+    if (!qsid) return true; // cannot tell -> fall back to the timed eject
+    await client.queues(qsid).members(callSid).fetch();
+    return true;
+  } catch (e) {
+    return false; // 404 -> no longer a member -> already bridged or gone
+  }
+}
+
 function armQueueTimer(callSid) {
   if (!callSid || queueTimers.has(callSid)) return;
   if (!cfg.accountSid || !cfg.authToken) return;
@@ -195,8 +216,15 @@ function armQueueTimer(callSid) {
   const t = setTimeout(async () => {
     queueTimers.delete(callSid);
     try {
+      // Only eject callers who are STILL waiting. If an agent already pulled
+      // them out of the queue (i.e. they are bridged on a live call) this
+      // redirect would hang up on a live conversation.
+      if (!(await stillQueued(client, callSid))) {
+        console.log('[queue] cap reached but caller already left the queue:', callSid);
+        return;
+      }
       await client.calls(callSid).update({ url: url('/voice/queue-timeout'), method: 'POST' });
-      console.log('[queue] cap reached - pulled', callSid, 'out of the queue');
+      console.log('[queue] cap reached, pulled', callSid, 'out of the queue');
     } catch (e) {
       console.error('[queue] cap redirect failed:', e.message);
     }
@@ -338,6 +366,8 @@ app.post('/voice/voicemail-done', twilioGuard, (req, res) => {
 // Dequeues the oldest waiting caller and bridges, recording dual-channel.
 // ---------------------------------------------------------------------------
 app.post('/voice/agent-connect', twilioGuard, (req, res) => {
+  console.log('[agent] /agent-connect identity=%s identityParam=%s',
+    (req.user && req.user.id) || '-', (req.body && req.body.identity) || '-');
   const identity = (req.body.identity || req.query.identity || '').toString();
   if (identity) presence.setOnCall(identity, true);
   try { tracker.agentConnected({ agentCallSid: req.body.CallSid, identity }); } catch (e) { console.error('track connect:', e.message); }
@@ -357,6 +387,8 @@ app.post('/voice/agent-connect', twilioGuard, (req, res) => {
 });
 
 app.post('/voice/agent-done', twilioGuard, (req, res) => {
+  console.log('[agent] /agent-done status=%s duration=%s',
+    (req.body && req.body.DialCallStatus) || '-', (req.body && req.body.DialCallDuration) || '-');
   const identity = (req.query.identity || '').toString();
   if (identity) presence.setOnCall(identity, false);
   try { tracker.agentDone({ agentCallSid: req.body.CallSid, dialCallStatus: req.body.DialCallStatus, dialCallDuration: req.body.DialCallDuration }); } catch (e) { console.error('track done:', e.message); }

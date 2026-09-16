@@ -122,13 +122,23 @@ $('declineBtn').onclick = () => { if (currentCall) { currentCall.reject(); hideI
 $('hangupBtn').onclick = () => { if (currentCall) currentCall.disconnect(); };
 
 $('answerNextBtn').onclick = async () => {
-  if (!device) return;
+  if (!device) {
+    // Was a silent return: clicking Answer did nothing at all with no
+    // explanation — which is indistinguishable from "the call hung up".
+    log('not online yet — cannot answer');
+    alert('You are not online yet.\n\nWait until the status reads "Online — taking calls", then try again.');
+    return;
+  }
   try {
     currentCall = await device.connect({ params: { identity } });
     currentCall.on('disconnect', () => endCall());
     onCall();
     log('pulling next caller from queue');
-  } catch (e) { log('answer-next error: ' + e.message); }
+  } catch (e) {
+    const msg = (e && e.message) ? e.message : 'connection problem';
+    log('answer-next error: ' + msg);
+    alert('Could not answer the call: ' + msg);
+  }
 };
 
 // Presence is simply: logged in = online, signed out = offline. The device
