@@ -241,11 +241,16 @@ async function logCallbackRequest(req, ten) {
   if (!zohoEnabled()) return;
   const nowIso = new Date().toISOString();
   const pretty = `${ten.slice(0, 3)}-${ten.slice(3, 6)}-${ten.slice(6)}`;
+  // NOTE: 'Callback' is not in the Bridge_Outcome picklist yet, and Zoho rejects
+  // values it does not know — which would drop the entire record and lose the
+  // number. So use a valid value and make the callback unmistakable in the Name
+  // (the captured number is the real payload). Swap to 'Callback' once the
+  // picklist option exists in Zoho.
   const record = {
-    Name: `${pretty} Callback ${nowIso.slice(0, 16)}Z`.slice(0, 120),
+    Name: `CALLBACK ${pretty} ${nowIso.slice(0, 16)}Z`.slice(0, 120),
     Caller_Number: `+1${ten}`,
     Bridge_Number: cfg.bridgeNumber || undefined,
-    Bridge_Outcome: 'Callback',
+    Bridge_Outcome: 'No-answer',
     Queue_Wait_sec: MAX_QUEUE_WAIT_SEC,
     Twilio_Call_SID: req.body.CallSid || undefined,
     Call_Time: nowIso.slice(0, 19) + '+00:00',
