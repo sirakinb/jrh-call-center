@@ -75,7 +75,9 @@ app.get('/api/token', authGuard, (req, res) => {
   presence.upsertAgent(identity, name);
   const token = new AccessToken(cfg.accountSid, cfg.apiKeySid, cfg.apiKeySecret, {
     identity,
-    ttl: 3600,
+    // 12h: the session lasts 12h, so the device token should too. A 1h token
+    // silently expired mid-shift and the agent's phone stopped ringing.
+    ttl: 43200,
   });
   token.addGrant(new VoiceGrant({ outgoingApplicationSid: cfg.twimlAppSid, incomingAllow: true }));
   res.json({ identity, token: token.toJwt() });
@@ -175,7 +177,12 @@ app.post('/voice/queue-result', twilioGuard, (req, res) => {
     g.say({ voice: 'Polly.Joanna' },
       'We are sorry for the wait. All of our leasing agents are on other calls right now. '
       + 'If you would like us to call you back, press 1 now. '
-      + 'Otherwise, stay on the line and leave a message after the tone.');
+      + 'Otherwise, stay on the line and leave a message after the beep.');
+    // Twilio does NOT call a <Gather> action when the caller presses nothing;
+    // it just continues with the next verb. With nothing after the Gather the
+    // call ended silently (no beep, no message). So the voicemail fallback lives
+    // here in the same document. Pressing 1 still routes to /voice/callback-menu.
+    voicemailTwiml(twiml);
   }
   res.type('text/xml').send(twiml.toString());
 });
@@ -223,7 +230,7 @@ app.post('/voice/callback-number', twilioGuard, async (req, res) => {
 function voicemailTwiml(twiml) {
   twiml.say({ voice: 'Polly.Joanna' },
     'Please leave your name, the property you are calling about, and the best number to reach you. '
-    + 'Press pound when you are finished.');
+    + 'Record your message after the beep, then press pound or just hang up.');
   twiml.record({
     action: url('/voice/voicemail-done'),
     recordingStatusCallback: url('/voice/recording-status'),

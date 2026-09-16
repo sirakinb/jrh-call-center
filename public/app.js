@@ -90,6 +90,15 @@ function wireDevice() {
   device.on('registered', () => { $('deviceState').innerHTML = '<span class="pill-dot"></span>Ready'; $('deviceState').className = 'pill pill-on'; });
   device.on('unregistered', () => { $('deviceState').innerHTML = '<span class="pill-dot"></span>Offline'; $('deviceState').className = 'pill pill-off'; });
   device.on('error', (e) => log('device error: ' + e.message));
+  // Twilio warns us just before the access token dies. Swap in a fresh one,
+  // otherwise the device drops offline mid-shift and the phone stops ringing.
+  device.on('tokenWillExpire', async () => {
+    try {
+      const r = await fetch('/api/token', { headers: authHeaders() });
+      const d = await r.json();
+      if (d && d.token) { device.updateToken(d.token); log('refreshed call token'); }
+    } catch (e) { log('token refresh failed: ' + (e && e.message)); }
+  });
   device.on('incoming', (call) => {
     currentCall = call;
     $('incoming').classList.remove('hidden');
@@ -140,6 +149,7 @@ function endCall() {
 }
 
 function startPolling() {
+  const LABEL = { available: 'Online', away: 'Away', oncall: 'On call', offline: 'Offline' };
   const tick = async () => {
     try {
       const r = await fetch('/api/status'); const d = await r.json();
@@ -149,7 +159,7 @@ function startPolling() {
       for (const a of d.agents) {
         const li = document.createElement('li');
         const ini = (a.name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
-        li.innerHTML = `<span class="a-left"><span class="a-av">${ini}</span><span>${a.name}</span></span><span class="s s-${a.status}"><span class="s-dot"></span>${a.status}</span>`;
+        li.innerHTML = `<span class="a-left"><span class="a-av">${ini}</span><span>${a.name}</span></span><span class="s s-${a.status}"><span class="s-dot"></span>${LABEL[a.status] || a.status}</span>`;
         ul.appendChild(li);
       }
       fetch('/api/presence', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({}) });
@@ -206,6 +216,7 @@ $('settingsSave').onclick = async () => {
 $('settingsSignout').onclick = async () => {
   try { await setStatus('away'); } catch (e) {}
   try { if (currentCall) currentCall.disconnect(); } catch (e) {}
+  try { fetch('/api/presence', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ status: 'offline' }), keepalive: true }); } catch (e) {}
   try { sessionStorage.clear(); } catch (e) {}
   location.reload();
 };

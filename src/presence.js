@@ -5,9 +5,14 @@ const agents = new Map();
 export const STATUS = { AVAILABLE: 'available', AWAY: 'away', ONCALL: 'oncall', OFFLINE: 'offline' };
 
 export function upsertAgent(identity, name) {
-  const a = agents.get(identity) || { identity, name, status: STATUS.OFFLINE, onCall: false };
+  const a = agents.get(identity) || { identity, name, status: STATUS.AVAILABLE, onCall: false };
   a.name = name || a.name || identity;
   a.lastSeen = Date.now();
+  // A heartbeat means the console is open. If we had marked them offline
+  // (backgrounded tab, laptop asleep, network blip) bring them back instead of
+  // leaving them stuck offline for the rest of the shift. Logged in and
+  // heart-beating IS online; signing out is what makes you offline.
+  if (a.status === STATUS.OFFLINE) a.status = a.onCall ? STATUS.ONCALL : STATUS.AVAILABLE;
   agents.set(identity, a);
   return a;
 }
@@ -32,7 +37,7 @@ export function setOnCall(identity, onCall) {
 export function listAgents() {
   const now = Date.now();
   for (const a of agents.values()) {
-    if (now - a.lastSeen > 30000 && a.status !== STATUS.OFFLINE) a.status = STATUS.OFFLINE;
+    if (now - a.lastSeen > 90000 && a.status !== STATUS.OFFLINE) a.status = STATUS.OFFLINE;
   }
   return [...agents.values()];
 }
