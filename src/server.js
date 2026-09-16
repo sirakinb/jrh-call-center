@@ -136,7 +136,7 @@ app.post('/voice/incoming', twilioGuard, async (req, res) => {
 // <Enqueue> action URL (/voice/queue-result) right away with QueueResult=leave,
 // which offers a callback (we must ask for the number: the caller ID on a Retell
 // transfer leg is Retell's number, not the caller's) with voicemail as fallback.
-const MAX_QUEUE_WAIT_SEC = parseInt(process.env.MAX_QUEUE_WAIT_SEC || '300', 10);
+const MAX_QUEUE_WAIT_SEC = parseInt(process.env.MAX_QUEUE_WAIT_SEC || '180', 10);
 
 app.post('/voice/wait', twilioGuard, (req, res) => {
   const queueTime = parseInt(req.body.QueueTime || '0', 10);
