@@ -66,7 +66,8 @@ $('loginBtn').onclick = async () => {
     }
     const r = await fetch('/api/token', { headers: authHeaders() });
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'token failed');
+    if (!r.ok) throw new Error(data.error || ('token request failed (' + r.status + ')'));
+    if (!data.token) throw new Error('no access token in response');
     identity = data.identity;
     device = new Twilio.Device(data.token, { codecPreferences: ['opus', 'pcmu'], logLevel: 'error' });
     wireDevice();
@@ -79,8 +80,9 @@ $('loginBtn').onclick = async () => {
     startPolling();
     log(`online as ${agentName}`);
   } catch (e) {
-    alert('Could not go online: ' + e.message);
-    log('login error: ' + e.message);
+    const msg = (e && e.message) ? e.message : 'connection problem — please try again';
+    alert('Could not go online: ' + msg);
+    log('login error: ' + msg);
   }
 };
 
