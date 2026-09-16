@@ -255,3 +255,7 @@ input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 4px r
 
 .settings-note { margin: 8px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
 .opt { font-weight: 500; color: var(--muted); text-transform: none; letter-spacing: 0; }
+
+/* ---------- status line (logged in = online) ---------- */
+.status-line { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #fff; }
+.status-line .pill-dot { width: 8px; height: 8px; border-radius: 50%; background: #37d67a; }

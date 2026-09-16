@@ -87,8 +87,16 @@ $('loginBtn').onclick = async () => {
 };
 
 function wireDevice() {
-  device.on('registered', () => { $('deviceState').innerHTML = '<span class="pill-dot"></span>Ready'; $('deviceState').className = 'pill pill-on'; });
-  device.on('unregistered', () => { $('deviceState').innerHTML = '<span class="pill-dot"></span>Offline'; $('deviceState').className = 'pill pill-off'; });
+  device.on('registered', () => {
+    $('deviceState').innerHTML = '<span class="pill-dot"></span>Online';
+    $('deviceState').className = 'pill pill-on';
+    const st = $('statusText'); if (st) st.textContent = 'Online - taking calls';
+  });
+  device.on('unregistered', () => {
+    $('deviceState').innerHTML = '<span class="pill-dot"></span>Offline';
+    $('deviceState').className = 'pill pill-off';
+    const st = $('statusText'); if (st) st.textContent = 'Offline - not taking calls';
+  });
   device.on('error', (e) => log('device error: ' + e.message));
   // Twilio warns us just before the access token dies. Swap in a fresh one,
   // otherwise the device drops offline mid-shift and the phone stops ringing.
@@ -123,12 +131,18 @@ $('answerNextBtn').onclick = async () => {
   } catch (e) { log('answer-next error: ' + e.message); }
 };
 
-$('availBtn').onclick = () => setStatus('available');
-$('awayBtn').onclick = () => setStatus('away');
+// Presence is simply: logged in = online, signed out = offline. The device
+// registers on sign-in and unregisters on sign-out, so there is nothing to
+// toggle by hand.
 
 async function setStatus(status) {
-  $('availBtn').classList.toggle('on', status === 'available');
-  $('awayBtn').classList.toggle('on', status === 'away');
+  if ($('availBtn')) $('availBtn').classList.toggle('on', status === 'available');
+  if ($('awayBtn')) $('awayBtn').classList.toggle('on', status === 'away');
+  const st = $('statusText');
+  if (st) st.textContent = (status === 'available' ? 'Online - taking calls'
+    : status === 'away' ? 'Away'
+    : status === 'oncall' ? 'On call'
+    : 'Offline');
   try { await fetch('/api/presence', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ status }) }); } catch {}
 }
 

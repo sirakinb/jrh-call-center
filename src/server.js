@@ -112,6 +112,19 @@ app.get('/api/status', async (_req, res) => {
 // INBOUND CALL FLOW (Retell cold-transfers caller into the bridge number)
 // ---------------------------------------------------------------------------
 
+// Diagnostic: log every voice webhook so call-flow problems are debuggable.
+app.use('/voice', (req, _res, next) => {
+  const b = req.body || {};
+  console.log('[voice]', req.path,
+    'CallSid=' + (b.CallSid || '-'),
+    'QueueResult=' + (b.QueueResult || '-'),
+    'QueueTime=' + (b.QueueTime || '-'),
+    'Digits=' + (b.Digits || '-'),
+    'DialStatus=' + (b.DialCallStatus || '-'),
+    'RecordingSid=' + (b.RecordingSid || '-'));
+  next();
+});
+
 app.post('/voice/incoming', twilioGuard, async (req, res) => {
   const twiml = new VoiceResponse();
   // PA two-party consent notice, then place caller in the queue.
@@ -142,6 +155,7 @@ const MAX_QUEUE_WAIT_SEC = parseInt(process.env.MAX_QUEUE_WAIT_SEC || '180', 10)
 
 app.post('/voice/wait', twilioGuard, (req, res) => {
   const queueTime = parseInt(req.body.QueueTime || '0', 10);
+  armQueueTimer(req.body.CallSid);
   if (queueTime >= MAX_QUEUE_WAIT_SEC) {
     res.type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response><Leave/></Response>');
     return;
@@ -159,8 +173,66 @@ app.post('/voice/wait', twilioGuard, (req, res) => {
   res.type('text/xml').send(twiml.toString());
 });
 
+
+// ---------------------------------------------------------------------------
+// Exact queue cap.
+// The hold-music file is ~80s and Twilio only re-requests the waitUrl once it
+// finishes, so a waitUrl-only check lets callers hold well past the cap (they
+// hear the whole track, then another). So we ALSO arm a server-side timer on
+// enqueue that pulls the caller out of the queue at exactly MAX_QUEUE_WAIT_SEC
+// through the REST API. The waitUrl check stays as a backstop.
+const queueTimers = new Map();
+
+function clearQueueTimer(callSid) {
+  const t = queueTimers.get(callSid);
+  if (t) { clearTimeout(t); queueTimers.delete(callSid); }
+}
+
+function armQueueTimer(callSid) {
+  if (!callSid || queueTimers.has(callSid)) return;
+  if (!cfg.accountSid || !cfg.authToken) return;
+  const client = twilio(cfg.accountSid, cfg.authToken);
+  const t = setTimeout(async () => {
+    queueTimers.delete(callSid);
+    try {
+      await client.calls(callSid).update({ url: url('/voice/queue-timeout'), method: 'POST' });
+      console.log('[queue] cap reached - pulled', callSid, 'out of the queue');
+    } catch (e) {
+      console.error('[queue] cap redirect failed:', e.message);
+    }
+  }, MAX_QUEUE_WAIT_SEC * 1000);
+  queueTimers.set(callSid, t);
+}
+
+// "No agent free" -> offer a callback (we must ask for the number: caller ID on
+// a Retell transfer leg is Retell's, not the caller's), voicemail as fallback.
+function callbackOfferTwiml(twiml) {
+  const g = twiml.gather({
+    numDigits: 1,
+    timeout: 6,
+    action: url('/voice/callback-menu'),
+    method: 'POST',
+  });
+  g.say({ voice: 'Polly.Joanna' },
+    'We are sorry for the wait. All of our leasing agents are on other calls right now. '
+    + 'If you would like us to call you back, press 1 now. '
+    + 'Otherwise, stay on the line and leave a message after the beep.');
+  // The voicemail fallback lives in the same document so it runs whichever way
+  // Twilio resolves the <Gather> timeout.
+  voicemailTwiml(twiml);
+}
+
+// Reached when the server-side cap timer pulls the caller out of the queue.
+app.post('/voice/queue-timeout', twilioGuard, (req, res) => {
+  clearQueueTimer(req.body.CallSid);
+  const twiml = new VoiceResponse();
+  callbackOfferTwiml(twiml);
+  res.type('text/xml').send(twiml.toString());
+});
+
 // After the caller leaves the queue: bridged to an agent, or timed out / gave up.
 app.post('/voice/queue-result', twilioGuard, (req, res) => {
+  clearQueueTimer(req.body.CallSid);
   const twiml = new VoiceResponse();
   const result = req.body.QueueResult;
   if (result === 'bridged' || result === 'redirected' || result === 'hangup') {
@@ -168,21 +240,7 @@ app.post('/voice/queue-result', twilioGuard, (req, res) => {
     twiml.hangup();
   } else {
     // Timed out (or errored): offer a callback, voicemail as the fallback.
-    const g = twiml.gather({
-      numDigits: 1,
-      timeout: 6,
-      action: url('/voice/callback-menu'),
-      method: 'POST',
-    });
-    g.say({ voice: 'Polly.Joanna' },
-      'We are sorry for the wait. All of our leasing agents are on other calls right now. '
-      + 'If you would like us to call you back, press 1 now. '
-      + 'Otherwise, stay on the line and leave a message after the beep.');
-    // Twilio does NOT call a <Gather> action when the caller presses nothing;
-    // it just continues with the next verb. With nothing after the Gather the
-    // call ended silently (no beep, no message). So the voicemail fallback lives
-    // here in the same document. Pressing 1 still routes to /voice/callback-menu.
-    voicemailTwiml(twiml);
+    callbackOfferTwiml(twiml);
   }
   res.type('text/xml').send(twiml.toString());
 });
