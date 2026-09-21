@@ -513,3 +513,12 @@ input:focus {
 /* ---------- status line (logged in = online) ---------- */
 .status-line { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #fff; }
 .status-line .pill-dot { width: 8px; height: 8px; border-radius: 50%; background: #37d67a; box-shadow: 0 0 10px rgba(55,214,122,.8); }
+
+/* ---------- accessibility: respect reduced-motion preference ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
