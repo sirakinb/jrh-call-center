@@ -15,6 +15,10 @@ export default defineConfig({
     url: `http://127.0.0.1:${PORT}/health`,
     reuseExistingServer: false,
     env: {
+      // twilio-node honors HTTP_PROXY (see RequestClient); a dead local proxy
+      // makes every Twilio REST call fail fast in-process, so the e2e suite
+      // never reaches api.twilio.com even with these synthetic credentials.
+      HTTP_PROXY: 'http://127.0.0.1:9',
       PORT: String(PORT),
       TWILIO_ACCOUNT_SID: 'AC' + 'a'.repeat(32),
       TWILIO_AUTH_TOKEN: 'test-auth-token',
