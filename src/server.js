@@ -518,8 +518,12 @@ app.post('/voice/vi-callback', async (req, res) => {
   }
 });
 
-app.listen(cfg.port, '0.0.0.0', () => {
-  console.log(`JRH call center listening on :${cfg.port}`);
-  console.log(`Public base URL: ${cfg.publicBaseUrl || '(not set)'}`);
-  console.log(`Queue: ${cfg.queueName}, hold music: ${cfg.holdMusicUrl}`);
-});
+export { app };
+
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(cfg.port, '0.0.0.0', () => {
+    console.log(`JRH call center listening on :${cfg.port}`);
+    console.log(`Public base URL: ${cfg.publicBaseUrl || '(not set)'}`);
+    console.log(`Queue: ${cfg.queueName}, hold music: ${cfg.holdMusicUrl}`);
+  });
+}
