@@ -19,14 +19,16 @@ describe('presence lifecycle', () => {
     expect(presence.setOnCall('p2', false).status).toBe('available');
   });
 
-  it('firstAvailable skips away and on-call agents', () => {
+  it('firstAvailable skips away and on-call agents and finds the free one', () => {
+    // The module map is shared across tests: park everyone else first.
+    for (const a of presence.listAgents()) presence.setStatus(a.identity, 'away');
     presence.upsertAgent('p3', 'Away Agent');
     presence.setStatus('p3', 'away');
     presence.upsertAgent('p4', 'Busy Agent');
     presence.setOnCall('p4', true);
-    const found = presence.firstAvailable();
-    expect(found === null || (found.status === 'available' && !found.onCall)).toBe(true);
-    expect(['p3', 'p4']).not.toContain(found?.identity);
+    expect(presence.firstAvailable()).toBeNull();
+    presence.upsertAgent('p3b', 'Free Agent');
+    expect(presence.firstAvailable()?.identity).toBe('p3b');
   });
 
   it('marks a silent agent offline after 90s, and a heartbeat revives them', () => {
